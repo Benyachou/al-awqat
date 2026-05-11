@@ -8,8 +8,8 @@
 // Frise temporelle pour CHAQUE prière obligatoire :
 //
 //   T = heure de la prière (adhan sonne)
-//   T+2min       → fin de l'adhan, dou'a après l'adhan apparaît
-//   T+3min       → fin du dou'a, retour à l'écran normal
+//   T+3min       → fin de l'adhan, dou'a après l'adhan apparaît
+//   T+4min       → fin du dou'a, retour à l'écran normal
 //   T+iqama-30s  → countdown iqama géant
 //   T+iqama      → début de la prière, écran NORMAL pendant 10 min
 //   T+iqama+10min → début des adhkar (défilent, 3 cycles complets)
@@ -64,8 +64,8 @@ class DisplayContext {
 class DisplayModeMachine {
   // === Durées des phases (en secondes) ===
 
-  /// L'adhan dure environ 2 minutes — à l'écran on affiche الأذان pendant ce temps.
-  static const adhanDurationSec = 120; // 2 min
+  /// L'adhan dure environ 3 minutes — à l'écran on affiche الأذان pendant ce temps.
+  static const adhanDurationSec = 180; // 3 min
 
   /// Après l'adhan, on affiche le dou'a pendant cette durée.
   static const postAdhanDurationSec = 60; // 1 min

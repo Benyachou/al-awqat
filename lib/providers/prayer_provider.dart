@@ -149,15 +149,16 @@ class PrayerProvider extends ChangeNotifier {
     final iqamaMin = settings.iqamaMinutes;
 
     // Countdown réaliste selon la phase de la timeline (cf. DisplayModeMachine) :
-    //   - adhan          : ~2 min restantes sur le tarteel de l'adhan
-    //   - postAdhan      : iqama dans (iqamaMin - 3) min, soit ~7 min par défaut
+    //   - adhan          : 3 min restantes sur le tarteel de l'adhan
+    //   - postAdhan      : iqama dans (iqamaMin - 4) min, soit ~6 min par défaut
+    //                      (l'adhan finit à T+3min, dou'a finit à T+4min)
     //   - iqamaCountdown : 30 dernières secondes avant l'iqama
     //   - postPrayer     : durée restante des adhkar (~10 min)
     final Duration realisticCountdown = switch (mode) {
       DisplayMode.adhan => const Duration(
           seconds: DisplayModeMachine.adhanDurationSec,
         ),
-      DisplayMode.postAdhan => Duration(minutes: iqamaMin - 3),
+      DisplayMode.postAdhan => Duration(minutes: iqamaMin - 4),
       DisplayMode.iqamaCountdown => const Duration(
           seconds: DisplayModeMachine.iqamaCountdownLeadSec,
         ),

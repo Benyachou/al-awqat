@@ -30,7 +30,10 @@ class AdhanOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final french = PrayerNames.french[slot.name]!;
-    final secondsLeft = countdown.inSeconds.clamp(0, 999);
+    final m = countdown.inMinutes;
+    final s = countdown.inSeconds % 60;
+    final timeLeft =
+        '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
     return Container(
       key: const ValueKey('adhan'),
       decoration: const BoxDecoration(
@@ -131,12 +134,21 @@ class AdhanOverlay extends StatelessWidget {
                           const Icon(Icons.timer_outlined,
                               color: AppTheme.highlight, size: 28),
                           const SizedBox(width: 12),
-                          Text(
-                            'Fin de l\'adhan dans $secondsLeft s',
-                            style: const TextStyle(
+                          const Text(
+                            'Fin de l\'adhan dans ',
+                            style: TextStyle(
                               fontSize: 22,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w500,
                               color: AppTheme.textPrimary,
+                              shadows: AppTheme.textShadow,
+                            ),
+                          ),
+                          Text(
+                            timeLeft,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.highlight,
                               fontFeatures: [FontFeature.tabularFigures()],
                               shadows: AppTheme.textShadow,
                             ),
