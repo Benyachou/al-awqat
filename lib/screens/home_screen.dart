@@ -1,15 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/display_mode.dart';
+import '../core/prayer_engine.dart';
 import '../core/theme.dart';
 import '../providers/prayer_provider.dart';
-import '../widgets/current_clock.dart';
-import '../widgets/hijri_date_widget.dart';
-import '../widgets/iqama_countdown.dart';
-import '../widgets/next_prayer_countdown.dart';
-import '../widgets/period_indicator.dart';
-import '../widgets/prayer_dial.dart';
-import '../widgets/prayer_row.dart';
+import '../widgets/mawaqit_clock.dart';
+import '../widgets/overlays.dart';
+import '../widgets/prayer_card.dart';
+import '../widgets/side_info.dart';
+import 'monthly_screen.dart';
+import 'qibla_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -27,124 +30,568 @@ class HomeScreen extends StatelessWidget {
           );
         }
 
-        final next = prayer.nextPrayer;
-        final current = prayer.currentPrayer;
-        final fresh = prayer.freshlyStartedSlot;
-        final iqama = prayer.iqamaCountdown;
-        final period = prayer.currentPeriod;
+        final ctx = prayer.displayContext;
 
-        return Scaffold(
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          prayer.settings.cityName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                      HijriDateWidget(
-                        now: prayer.now,
-                        offsetDays: prayer.settings.hijriOffset,
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.settings,
-                          color: AppTheme.textSecondary,
-                          size: 32,
-                        ),
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          flex: 5,
-                          child: Center(
-                            child: PrayerDial(
-                              today: today,
-                              tomorrow: tomorrow,
-                              now: prayer.now,
-                              periods: prayer.dayPeriods,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              CurrentClock(now: prayer.now),
-                              const SizedBox(height: 12),
-                              if (iqama != null) ...[
-                                IqamaCountdown(
-                                  slot: iqama.slot,
-                                  remaining: iqama.remaining,
-                                ),
-                                const SizedBox(height: 8),
-                              ],
-                              if (period != null)
-                                PeriodIndicator(
-                                  period: period,
-                                  now: prayer.now,
-                                ),
-                              const SizedBox(height: 8),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    children: today.all.entries
-                                        .map(
-                                          (e) => PrayerRow(
-                                            key: ValueKey(e.key),
-                                            slot: e.key,
-                                            time: e.value,
-                                            isCurrent: current == e.key,
-                                            isNext: next?.slot == e.key,
-                                            isFresh: fresh == e.key,
-                                            isJumuah: today.isJumuah,
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                              ),
-                              if (next != null) ...[
-                                const SizedBox(height: 8),
-                                NextPrayerCountdown(
-                                  slot: next.slot,
-                                  untilNext: prayer.untilNext,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+        return PopScope(
+          canPop: false,
+          child: Scaffold(
+            backgroundColor: Colors.black,
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                _BackgroundImage(dimming: prayer.settings.backgroundDimming),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 600),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _buildForMode(context, prayer, ctx),
+                ),
+              ],
             ),
           ),
         );
       },
     );
+  }
+
+  Widget _buildForMode(
+    BuildContext context,
+    PrayerProvider prayer,
+    DisplayContext ctx,
+  ) {
+    switch (ctx.mode) {
+      case DisplayMode.adhan:
+        return AdhanOverlay(
+          slot: ctx.slot!,
+          countdown: ctx.countdown!,
+          today: prayer.today!,
+          mosqueeName: prayer.settings.mosqueeName,
+        );
+      case DisplayMode.postAdhan:
+        return PostAdhanOverlay(
+          countdown: ctx.countdown!,
+          today: prayer.today!,
+          mosqueeName: prayer.settings.mosqueeName,
+        );
+      case DisplayMode.iqamaCountdown:
+        return IqamaCountdownOverlay(
+          slot: ctx.slot!,
+          countdown: ctx.countdown!,
+          today: prayer.today!,
+          mosqueeName: prayer.settings.mosqueeName,
+        );
+      case DisplayMode.postPrayer:
+        return PostPrayerOverlay(
+          countdown: ctx.countdown!,
+          today: prayer.today!,
+          mosqueeName: prayer.settings.mosqueeName,
+        );
+      case DisplayMode.normal:
+        return _MainView(key: const ValueKey('main'), prayer: prayer);
+    }
+  }
+}
+
+class _BackgroundImage extends StatelessWidget {
+  const _BackgroundImage({required this.dimming});
+
+  /// 0 = image presque pure (peu lisible), 1 = quasi-noir (texte ultra net).
+  final double dimming;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = dimming.clamp(0.0, 1.0);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/images/al-masjid-al-haram.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(color: Colors.black),
+        ),
+        // Voile dégradé pour assurer la lisibilité du texte par-dessus.
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: (base * 1.05).clamp(0.0, 1.0)),
+                Colors.black.withValues(alpha: (base * 0.75).clamp(0.0, 1.0)),
+                Colors.black.withValues(alpha: (base * 1.40).clamp(0.0, 1.0)),
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MainView extends StatelessWidget {
+  const _MainView({super.key, required this.prayer});
+  final PrayerProvider prayer;
+
+  /// Les 5 prières obligatoires affichées en bas du HomeScreen.
+  /// Shurûq est volontairement absent ici : il est déjà affiché dans la
+  /// pilule SideInfo en haut à gauche, pas besoin de doublon.
+  static const _orderedSlots = [
+    PrayerSlot.fajr,
+    PrayerSlot.dhuhr,
+    PrayerSlot.asr,
+    PrayerSlot.maghrib,
+    PrayerSlot.isha,
+  ];
+
+  PrayerCardState _stateFor(
+    PrayerSlot slot,
+    PrayerSlot? current,
+    PrayerSlot? next,
+    DateTime time,
+    DateTime now,
+  ) {
+    if (current == slot) return PrayerCardState.current;
+    if (next == slot) return PrayerCardState.next;
+    if (time.isBefore(now)) return PrayerCardState.passed;
+    return PrayerCardState.upcoming;
+  }
+
+  /// Calcule la "barre de vie" de la carte de la prière COURANTE uniquement.
+  ///
+  /// Retourne la fraction de temps restant avant la prochaine prière :
+  /// 1.0 juste après l'adhan courant, 0.0 juste avant le suivant.
+  /// La jauge se vide (style barre de vie qui descend).
+  ///
+  /// Renvoie null pour toutes les autres cartes (passées, suivante, à venir) :
+  /// seule la prière courante porte la jauge.
+  double? _fillFor(
+    PrayerSlot slot,
+    PrayerSlot? current,
+    DateTime now,
+    PrayerSchedule today,
+    PrayerSchedule tomorrow,
+  ) {
+    if (current != slot) return null;
+
+    final order = _orderedSlots.where((s) => s != PrayerSlot.sunrise).toList();
+
+    // À ce stade, current == slot (non-null). On utilise slot pour avoir un
+    // type non-nullable sans cast.
+    final currentTime = today.all[slot];
+    if (currentTime == null) return null;
+
+    // Heure de la prière suivante (point d'arrivée de l'intervalle).
+    DateTime? nextTime;
+    final i = order.indexOf(slot);
+    if (i >= 0 && i < order.length - 1) {
+      nextTime = today.all[order[i + 1]];
+    } else {
+      nextTime = tomorrow.fajr;
+    }
+    if (nextTime == null) return null;
+
+    final total = nextTime.difference(currentTime).inSeconds;
+    if (total <= 0) return null;
+    final elapsed = now.difference(currentTime).inSeconds.clamp(0, total);
+    final progress = elapsed / total; // 0..1, fraction écoulée
+    return (1.0 - progress).clamp(0.0, 1.0); // se vide
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = prayer.today!;
+    final tomorrow = prayer.tomorrow!;
+    final settings = prayer.settings;
+    final next = prayer.nextPrayer;
+    final current = prayer.currentPrayer;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          children: [
+            _Header(
+              mosqueeName: settings.mosqueeName,
+              cityName: settings.cityName,
+              hasUpdate: prayer.availableUpdate?.hasUpdate ?? false,
+              isAdhanPlaying: prayer.audio.isPlaying,
+              onStopAdhan: prayer.stopAdhan,
+              scale: settings.headerScale * settings.fontScale,
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              flex: 5,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SideInfo(
+                    label: 'Shurûq',
+                    arabicLabel: 'الشروق',
+                    time: today.sunrise,
+                    scale: settings.sideScale * settings.fontScale,
+                  ),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            blurRadius: 18,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MawaqitClock(
+                            now: prayer.now,
+                            nextSlot: next?.slot,
+                            untilNext: prayer.untilNext,
+                            hijriOffset: settings.hijriOffset,
+                            scale: settings.clockScale * settings.fontScale,
+                          ),
+                          const SizedBox(height: 10),
+                          _DigitalClockBar(now: prayer.now),
+                        ],
+                      ),
+                    ),
+                    SideInfo(
+                      label: 'Jumu\'ah',
+                      arabicLabel: 'الجمعة',
+                      time: settings.jumuahEnabled
+                          ? DateTime(
+                              prayer.now.year,
+                              prayer.now.month,
+                              prayer.now.day,
+                              settings.jumuahHour,
+                              settings.jumuahMinute,
+                            )
+                          : null,
+                      scale: settings.sideScale * settings.fontScale,
+                    ),
+                  ],
+                ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (var i = 0; i < _orderedSlots.length; i++)
+                  SizedBox(
+                    width: 170 * settings.cardScale * settings.fontScale,
+                    height: 210 * settings.cardScale * settings.fontScale,
+                    child: PrayerCard(
+                        slot: _orderedSlots[i],
+                        time: today.all[_orderedSlots[i]]!,
+                        iqamaMinutes: settings.iqamaMinutes,
+                        showIqama: _orderedSlots[i] != PrayerSlot.sunrise,
+                        scale: settings.cardScale * settings.fontScale,
+                        state: _stateFor(
+                          _orderedSlots[i],
+                          current,
+                          next?.slot,
+                          today.all[_orderedSlots[i]]!,
+                          prayer.now,
+                        ),
+                        isJumuah: today.isJumuah,
+                        fillProgress: _fillFor(
+                          _orderedSlots[i],
+                          current,
+                          prayer.now,
+                          today,
+                          tomorrow,
+                        ),
+                      ),
+                    ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pilule date grégorienne complète (l'heure HH:MM est déjà en gros au-dessus).
+class _DigitalClockBar extends StatelessWidget {
+  const _DigitalClockBar({required this.now});
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = DateFormat('EEEE d MMMM y', 'fr_FR').format(now);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.event_outlined,
+              size: 14, color: AppTheme.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            date,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.3,
+              shadows: AppTheme.textShadow,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.mosqueeName,
+    required this.cityName,
+    required this.hasUpdate,
+    required this.isAdhanPlaying,
+    required this.onStopAdhan,
+    required this.scale,
+  });
+
+  final String mosqueeName;
+  final String cityName;
+  final bool hasUpdate;
+  final ValueListenable<bool> isAdhanPlaying;
+  final Future<void> Function() onStopAdhan;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // La pilule du nom de mosquée est CENTRÉE indépendamment, et prend
+        // juste la largeur de son texte (IntrinsicWidth via la Column avec
+        // mainAxisSize.min). Comme ça, "Mosquée de Ganges" ne crée pas une
+        // grande bulle vide à droite.
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.40),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.22),
+                width: 1.2,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  mosqueeName,
+                  style: TextStyle(
+                    fontSize: 18 * scale,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: 0.4,
+                    height: 1.1,
+                    shadows: AppTheme.textShadow,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  cityName,
+                  style: TextStyle(
+                    fontSize: 11 * scale,
+                    color: AppTheme.textPrimary.withValues(alpha: 0.85),
+                    shadows: AppTheme.textShadow,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Les boutons sont superposés en gauche/droite de la pilule, dans
+        // un Row qui prend toute la largeur. Comme ça la pilule reste bien
+        // centrée même si on a 2 ou 3 boutons à droite.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _GlassIconButton(
+              icon: Icons.explore,
+              tooltip: 'Qibla',
+              autofocus: true,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const QiblaScreen()),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _GlassIconButton(
+              icon: Icons.calendar_month,
+              tooltip: 'Calendrier mensuel',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MonthlyScreen()),
+              ),
+            ),
+            const Spacer(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: isAdhanPlaying,
+                builder: (context, playing, _) {
+                  if (!playing) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _GlassIconButton(
+                      icon: Icons.stop_circle,
+                      iconColor: AppTheme.highlight,
+                      tooltip: 'Stopper l\'adhan',
+                      onPressed: onStopAdhan,
+                    ),
+                  );
+                },
+              ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _GlassIconButton(
+                    icon: Icons.settings,
+                    tooltip: 'Paramètres',
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SettingsScreen()),
+                    ),
+                  ),
+                  if (hasUpdate)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: AppTheme.highlight,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: Colors.black, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Bouton glass focus-aware. En mode TV (télécommande), le focus apparaît
+/// avec un halo orange + agrandissement, ce qui rend la navigation D-pad
+/// claire à l'écran.
+class _GlassIconButton extends StatefulWidget {
+  const _GlassIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+    this.iconColor,
+    this.autofocus = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? tooltip;
+  final Color? iconColor;
+  final bool autofocus;
+
+  @override
+  State<_GlassIconButton> createState() => _GlassIconButtonState();
+}
+
+class _GlassIconButtonState extends State<_GlassIconButton> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = _focused
+        ? AppTheme.highlight
+        : Colors.white.withValues(alpha: 0.20);
+    final bgColor = _focused
+        ? AppTheme.highlight.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.40);
+
+    final btn = AnimatedScale(
+      duration: const Duration(milliseconds: 150),
+      scale: _focused ? 1.12 : 1.0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: _focused
+              ? [
+                  BoxShadow(
+                    color: AppTheme.highlight.withValues(alpha: 0.55),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                  )
+                ]
+              : null,
+        ),
+        child: Material(
+          color: bgColor,
+          shape: CircleBorder(
+            side: BorderSide(
+              color: borderColor,
+              width: _focused ? 2.5 : 1.2,
+            ),
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: widget.onPressed,
+            onFocusChange: (f) => setState(() => _focused = f),
+            autofocus: widget.autofocus,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Icon(
+                widget.icon,
+                size: 28,
+                color: widget.iconColor ??
+                    (_focused
+                        ? AppTheme.highlight
+                        : AppTheme.textPrimary.withValues(alpha: 0.85)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return widget.tooltip != null
+        ? Tooltip(message: widget.tooltip!, child: btn)
+        : btn;
   }
 }

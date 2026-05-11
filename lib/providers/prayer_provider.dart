@@ -1,105 +1,218 @@
+// =============================================================================
+// PrayerProvider : le cerveau de l'application.
+//
+// Ce ChangeNotifier est instancié UNE FOIS dans main.dart et partagé à tout
+// l'arbre via Provider. Tous les widgets qui ont besoin de l'heure ou des
+// horaires l'écoutent via `context.watch<PrayerProvider>()` ou `Consumer`.
+//
+// Responsabilités :
+//   - Lance un timer toutes les secondes (le "tick") qui :
+//       1. met à jour _now
+//       2. recalcule les horaires si on a changé de jour à minuit
+//       3. déclenche l'adhan audio si on vient de passer une heure de prière
+//       4. notifie les widgets pour rebuild
+//   - Expose des getters dérivés (currentPrayer, nextPrayer, untilNext,
+//     iqamaCountdown, displayContext) calculés à la volée.
+//   - Gère la persistance du dernier adhan joué (anti-rejeu après reboot).
+//   - Délègue les paramètres au SettingsService et la lecture audio à
+//     AudioService.
+//   - Auto-check des updates GitHub au lancement (1×/24h max).
+//
+// IMPORTANT : ce provider notifie chaque SECONDE. Tous les widgets qui le
+// consomment se rebuildent chaque seconde. Il ne faut donc pas y mettre
+// de calculs trop lourds dans les getters, ni de widget trop coûteux à
+// reconstruire (utilise const partout où possible).
+// =============================================================================
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/display_mode.dart';
 import '../core/prayer_engine.dart';
-import '../core/prayer_period.dart';
 import '../models/app_settings.dart';
 import '../services/audio_service.dart';
 import '../services/settings_service.dart';
+import '../services/update_service.dart';
 
 class PrayerProvider extends ChangeNotifier {
+  /// Au démarrage :
+  ///   - instancie tous les services internes
+  ///   - applique le volume sauvegardé à l'AudioService
+  ///   - restaure le dernier adhan joué (pour ne pas le rejouer au reboot)
+  ///   - calcule les horaires d'aujourd'hui et de demain
+  ///   - lance le timer 1Hz
+  ///   - lance un check de update différé (5s) si activé
   PrayerProvider(this._settingsService) {
     _engine = PrayerEngine();
-    _periods = PrayerPeriodCalculator();
     _audio = AudioService();
+    _updateService = UpdateService();
+    _audio.setVolume(settings.adhanVolume);
+    _restoreLastTriggered();
     _recompute();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    _maybeAutoCheckUpdates();
   }
 
+  // --- Dépendances injectées / créées ---
   final SettingsService _settingsService;
   late final PrayerEngine _engine;
-  late final PrayerPeriodCalculator _periods;
   late final AudioService _audio;
+  late final UpdateService _updateService;
   late Timer _ticker;
 
+  /// Exposé pour que l'UI puisse écouter audio.isPlaying (afficher le bouton
+  /// stop) et déclencher manuellement audio.playAdhan() depuis le bouton test.
+  AudioService get audio => _audio;
+  UpdateService get updateService => _updateService;
+
+  /// Dernier résultat du check d'update. Null tant qu'on n'a pas vérifié.
+  /// `hasUpdate == true` → badge orange sur l'icône ⚙️ du header.
+  UpdateInfo? _availableUpdate;
+  UpdateInfo? get availableUpdate => _availableUpdate;
+
+  // --- État courant (mutable via _tick) ---
   PrayerSchedule? _today;
   PrayerSchedule? _tomorrow;
   DateTime _now = DateTime.now();
+  /// Jour pour lequel _today/_tomorrow ont été calculés. Sert à détecter
+  /// le passage de minuit pour relancer un calcul.
   DateTime _scheduleDate = DateTime.now();
+
+  /// Identité du dernier adhan joué (slot + timestamp). Persisté dans
+  /// SharedPreferences pour qu'un reboot quelques minutes après une prière
+  /// ne rejoue PAS l'adhan une deuxième fois.
   PrayerSlot? _lastTriggered;
+  DateTime? _lastTriggeredAt;
 
   AppSettings get settings => _settingsService.settings;
   PrayerSchedule? get today => _today;
   DateTime get now => _now;
 
+  /// Prochaine prière obligatoire après [_now], en sautant sunrise.
+  /// Si l'Isha de today est passée, renvoie le Fajr de tomorrow.
   ({PrayerSlot slot, DateTime time})? get nextPrayer {
     if (_today == null || _tomorrow == null) return null;
     return _engine.nextPrayer(_today!, _tomorrow!, _now);
   }
 
+  /// Prière "en cours" = la plus récente passée. Voir PrayerEngine.
   PrayerSlot? get currentPrayer {
     if (_today == null) return null;
     return _engine.currentPrayer(_today!, _now);
   }
 
-  /// The prayer slot whose time was reached within the last 5 minutes,
-  /// used to trigger the blinking "adhan vient de sonner" highlight.
-  PrayerSlot? get freshlyStartedSlot {
-    if (_today == null) return null;
-    final current = _engine.currentPrayer(_today!, _now);
-    if (current == null) return null;
-    final time = _today!.all[current];
-    if (time == null) return null;
-    final elapsed = _now.difference(time);
-    if (elapsed.inSeconds >= 0 && elapsed.inMinutes < 5) {
-      return current;
-    }
-    return null;
-  }
-
+  /// Durée entre maintenant et la prochaine prière. Utilisé par MawaqitClock
+  /// pour afficher "Isha dans 1 h 20 min".
   Duration get untilNext {
     final next = nextPrayer;
     if (next == null) return Duration.zero;
     return next.time.difference(_now);
   }
 
-  PrayerPeriod? get currentPeriod {
-    if (_today == null || _tomorrow == null) return null;
-    return _periods.currentPeriod(_today!, _tomorrow!, _now);
-  }
-
-  List<PrayerPeriod> get dayPeriods {
-    if (_today == null || _tomorrow == null) return const [];
-    return _periods.buildDay(_today!, _tomorrow!);
-  }
-
   PrayerSchedule? get tomorrow => _tomorrow;
 
-  /// If we are within the iqama window after the last adhan, returns
-  /// the time remaining until iqama. Otherwise null.
-  ({PrayerSlot slot, Duration remaining})? get iqamaCountdown {
-    if (_today == null) return null;
-    final current = _engine.currentPrayer(_today!, _now);
-    if (current == null) return null;
-    final prayerTime = _today!.all[current];
-    if (prayerTime == null) return null;
-    final iqamaTime =
-        prayerTime.add(Duration(minutes: settings.iqamaMinutes));
-    if (_now.isBefore(iqamaTime)) {
-      return (slot: current, remaining: iqamaTime.difference(_now));
-    }
-    return null;
+  /// Détermine quel écran afficher selon le moment de la journée :
+  /// normal, adhan en cours, post-adhan, iqama countdown, prière, adhkar.
+  /// Voir DisplayModeMachine pour les règles exactes.
+  ///
+  /// Si un preview est actif (via previewMode), il prend le pas sur le
+  /// calcul automatique pendant sa durée — utile pour valider visuellement
+  /// chaque écran depuis Paramètres sans attendre l'heure de la prière.
+  DisplayContext get displayContext {
+    if (_previewContext != null) return _previewContext!;
+    if (_today == null) return DisplayContext.normal;
+    return DisplayModeMachine.compute(
+      now: _now,
+      today: _today!,
+      iqamaMinutes: settings.iqamaMinutes,
+    );
   }
 
+  // --- Mode preview (override temporaire pour aperçu) ---
+  DisplayContext? _previewContext;
+  Timer? _previewTimer;
+
+  /// Force l'affichage du mode [mode] pendant [duration] secondes. Au bout
+  /// du timer, le contexte normal reprend la main. Si on appelle plusieurs
+  /// fois, le précédent timer est annulé.
+  void previewMode(DisplayMode mode, {Duration duration = const Duration(seconds: 30)}) {
+    _previewTimer?.cancel();
+    final fakeSlot = currentPrayer ?? PrayerSlot.dhuhr;
+    final fakeTime = _today?.all[fakeSlot] ?? _now;
+    _previewContext = DisplayContext(
+      mode: mode,
+      slot: fakeSlot,
+      prayerTime: fakeTime,
+      countdown: duration,
+    );
+    notifyListeners();
+    _previewTimer = Timer(duration, () {
+      _previewContext = null;
+      notifyListeners();
+    });
+  }
+
+  /// Coupe immédiatement un éventuel preview en cours.
+  void cancelPreview() {
+    _previewTimer?.cancel();
+    _previewContext = null;
+    notifyListeners();
+  }
+
+  /// Point d'entrée pour tout changement de paramètre. Sauvegarde + applique
+  /// + recalcule + notifie. Le check `volumeChanged` évite un setVolume()
+  /// inutile à chaque rebuild.
   Future<void> updateSettings(AppSettings newSettings) async {
+    final volumeChanged = newSettings.adhanVolume != settings.adhanVolume;
     await _settingsService.save(newSettings);
+    if (volumeChanged) await _audio.setVolume(newSettings.adhanVolume);
     _recompute();
     notifyListeners();
   }
 
+  /// Coupe l'adhan en cours (bouton stop dans le header).
+  Future<void> stopAdhan() => _audio.stop();
+
+  /// Force un check d'update (bouton "Vérifier maintenant" dans Paramètres).
+  /// Met à jour [availableUpdate] et notifie.
+  Future<UpdateInfo?> checkForUpdates() async {
+    final repo = settings.updateRepoUrl;
+    if (repo == null || repo.isEmpty) return null;
+    final info = await _updateService.checkLatestRelease(repo);
+    await _settingsService.setLastUpdateCheck(DateTime.now());
+    _availableUpdate = info;
+    notifyListeners();
+    return info;
+  }
+
+  /// Auto-check au démarrage : ne fait rien si pas de repo configuré, ou
+  /// si déjà vérifié il y a moins de 24h. Le délai de 5s laisse l'app
+  /// terminer son premier frame avant de partir en requête réseau.
+  Future<void> _maybeAutoCheckUpdates() async {
+    if (!settings.autoCheckUpdates) return;
+    final repo = settings.updateRepoUrl;
+    if (repo == null || repo.isEmpty) return;
+    final last = _settingsService.getLastUpdateCheck();
+    final now = DateTime.now();
+    if (last != null && now.difference(last).inHours < 24) return;
+    await Future.delayed(const Duration(seconds: 5));
+    await checkForUpdates();
+  }
+
+  /// Au démarrage : lit le dernier adhan joué depuis le storage pour
+  /// alimenter le filtre anti-rejeu (voir _maybeTriggerAdhan).
+  void _restoreLastTriggered() {
+    final last = _settingsService.getLastTriggered();
+    if (last == null) return;
+    _lastTriggered = last.slot;
+    _lastTriggeredAt = last.at;
+  }
+
+  /// Appelé chaque seconde par le timer.
   void _tick() {
     _now = DateTime.now();
+    // Détection du passage de minuit (changement de jour) → recalcule.
     if (!_isSameDay(_now, _scheduleDate)) {
       _recompute();
     }
@@ -107,6 +220,9 @@ class PrayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Recalcule les horaires d'aujourd'hui et de demain à partir des
+  /// settings courants. Appelé au démarrage, à chaque changement de
+  /// paramètre, et à minuit.
   void _recompute() {
     _now = DateTime.now();
     _scheduleDate = DateTime(_now.year, _now.month, _now.day);
@@ -117,16 +233,38 @@ class PrayerProvider extends ChangeNotifier {
     );
   }
 
+  /// Calcule les horaires pour un jour arbitraire (utilisé par l'écran
+  /// "Calendrier mensuel" qui affiche les 30 prochains jours).
+  PrayerSchedule scheduleForDay(DateTime day) =>
+      _engine.scheduleFor(settings, day);
+
+  /// Si on vient de franchir l'heure d'une prière (fenêtre 0-5 s), joue
+  /// l'adhan. Le filtre _lastTriggered empêche le rejeu en cas de redémarrage
+  /// ou de tick décalé.
   void _maybeTriggerAdhan() {
     if (!settings.playAdhan || _today == null) return;
     final current = _engine.currentPrayer(_today!, _now);
-    if (current == null || current == _lastTriggered) return;
+    if (current == null) return;
     final prayerTime = _today!.all[current];
     if (prayerTime == null) return;
+
+    // Anti-rejeu : si on a déjà déclenché ce slot il y a moins de 10 min,
+    // on ne refait pas. Couvre le cas où l'app redémarre 2 min après une
+    // prière — sans ça, l'adhan rejouerait à chaque restart.
+    if (_lastTriggered == current && _lastTriggeredAt != null) {
+      final sinceLast = _now.difference(_lastTriggeredAt!).abs();
+      if (sinceLast.inMinutes < 10) return;
+    }
+
+    // Fenêtre stricte 0-5 secondes : on déclenche pile au moment de
+    // l'adhan, pas avant, pas longtemps après (ex : si l'app a été en
+    // pause puis revient, on ne joue pas un adhan rétroactivement).
     final secondsSince = _now.difference(prayerTime).inSeconds;
     if (secondsSince >= 0 && secondsSince < 5) {
       _audio.playAdhan();
       _lastTriggered = current;
+      _lastTriggeredAt = _now;
+      _settingsService.setLastTriggered(current, _now);
     }
   }
 
@@ -136,6 +274,7 @@ class PrayerProvider extends ChangeNotifier {
   @override
   void dispose() {
     _ticker.cancel();
+    _previewTimer?.cancel();
     _audio.dispose();
     super.dispose();
   }

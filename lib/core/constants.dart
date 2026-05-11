@@ -1,4 +1,17 @@
+// =============================================================================
+// Constantes textuelles et géographiques de l'app.
+//
+// On garde ici les données figées qu'on ne veut pas dupliquer dans plusieurs
+// widgets. Tous les widgets qui affichent un nom de prière en arabe ou en
+// français passent par PrayerNames pour rester cohérents.
+// =============================================================================
+
+/// Noms des 5 prières + lever du soleil, en arabe vocalisé et en
+/// translittération latine. Les clés sont les `name` de l'enum PrayerSlot
+/// (`fajr`, `sunrise`, `dhuhr`, `asr`, `maghrib`, `isha`) — comme ça on peut
+/// faire `PrayerNames.french[slot.name]!` partout sans switch.
 class PrayerNames {
+  /// Noms en arabe avec voyelles (s'affichent en RTL via Directionality).
   static const Map<String, String> arabic = {
     'fajr': 'الفجر',
     'sunrise': 'الشروق',
@@ -8,9 +21,12 @@ class PrayerNames {
     'isha': 'العشاء',
   };
 
+  /// Translittération latine. On garde "Shurûq" (avec û) pour le lever du
+  /// soleil — c'est le terme arabe direct, plus reconnaissable pour les
+  /// musulmans francophones que "Lever".
   static const Map<String, String> french = {
     'fajr': 'Fajr',
-    'sunrise': 'Lever',
+    'sunrise': 'Shurûq',
     'dhuhr': 'Dhuhr',
     'asr': 'Asr',
     'maghrib': 'Maghrib',
@@ -18,6 +34,16 @@ class PrayerNames {
   };
 }
 
+/// Liste figée de villes pré-réglées disponibles dans le dropdown des
+/// paramètres. Chaque entrée mappe un libellé affiché à un couple
+/// `(latitude, longitude)` en degrés décimaux.
+///
+/// Si tu ajoutes une ville, copie-colle simplement une ligne — pas besoin
+/// de toucher au reste du code. Le dropdown se peuple automatiquement à
+/// partir des clés de cette Map.
+///
+/// Pour les villes hors de cette liste, l'utilisateur peut utiliser la
+/// recherche Nominatim (en ligne) ou saisir lat/long manuellement.
 class PresetCities {
   static const Map<String, (double, double)> coordinates = {
     'Ganges, France (34190)': (43.9333, 3.7167),

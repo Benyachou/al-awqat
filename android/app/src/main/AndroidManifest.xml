@@ -1,4 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internet : recherche de villes (Nominatim) et vérification des updates GitHub.
+         L'app fonctionne sans, mais ces deux features deviennent indisponibles. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Démarrage automatique au boot de la box. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Garde l'écran allumé en permanence (mode affichage permanent). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
+    <!-- Boussole magnétique pour l'écran Qibla. Optionnel : si absent, on affiche
+         seulement l'azimut numérique. -->
+    <uses-feature android:name="android.hardware.sensor.compass" android:required="false"/>
+    <!-- Permet à l'app d'être visible sur les Android TV / box sans écran tactile. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
     <application
         android:label="Al-awqat"
         android:name="${applicationName}"
@@ -11,6 +25,9 @@
             android:theme="@style/LaunchTheme"
             android:screenOrientation="landscape"
             android:keepScreenOn="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:resumeWhilePausing="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -22,11 +39,34 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- L'app peut être lancée comme une app classique...  -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+                <!-- ...comme launcher d'une Android TV (Leanback)... -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <!-- ...et surtout : déclarée comme HOME, donc lancée automatiquement
+                 au boot et au bouton Home de la box (kiosque). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.HOME"/>
+                <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <!-- Receiver qui relance l'app au boot, au cas où elle ne serait pas
+             définie comme launcher par défaut. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -42,6 +82,12 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Requis par url_launcher pour ouvrir une URL https dans le navigateur. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>
