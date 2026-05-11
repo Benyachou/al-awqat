@@ -116,67 +116,93 @@ class PrayerProvider extends ChangeNotifier {
   /// normal, adhan en cours, post-adhan, iqama countdown, prière, adhkar.
   /// Voir DisplayModeMachine pour les règles exactes.
   ///
-  /// Si un preview est actif (via previewMode), il prend le pas sur le
-  /// calcul automatique pendant sa durée — utile pour valider visuellement
-  /// chaque écran depuis Paramètres sans attendre l'heure de la prière.
+  /// Si un preview est actif, on remplace le « now » réel par un « now »
+  /// fictif positionné dans la phase voulue — la state machine fait tout
+  /// le reste naturellement, les countdowns décrémentent en temps réel.
   DisplayContext get displayContext {
-    if (_previewContext != null) return _previewContext!;
     if (_today == null) return DisplayContext.normal;
     return DisplayModeMachine.compute(
-      now: _now,
+      now: _effectiveNow,
       today: _today!,
       iqamaMinutes: settings.iqamaMinutes,
     );
   }
 
-  // --- Mode preview (override temporaire pour aperçu) ---
-  DisplayContext? _previewContext;
+  /// Heure « effective » utilisée par la state machine : c'est le `_now`
+  /// réel sauf si un preview est actif, auquel cas on rejoue la timeline
+  /// à partir d'un instant fictif (avancée 1 s pour 1 s de temps réel).
+  DateTime get _effectiveNow {
+    if (_previewFakeNow == null || _previewRealStartedAt == null) return _now;
+    final realElapsed = _now.difference(_previewRealStartedAt!);
+    return _previewFakeNow!.add(realElapsed);
+  }
+
+  // --- Mode preview (simulation d'un faux "now" pour valider les écrans) ---
+  DateTime? _previewFakeNow;
+  DateTime? _previewRealStartedAt;
   Timer? _previewTimer;
 
-  /// Force l'affichage du mode [mode] pendant [duration] secondes. Au bout
-  /// du timer, le contexte normal reprend la main. Si on appelle plusieurs
-  /// fois, le précédent timer est annulé.
-  ///
-  /// Important : le `countdown` affiché dans l'overlay est calculé en
-  /// fonction du mode pour rester COHÉRENT avec la timeline réelle (ex :
-  /// pendant le dou'a post-adhan, l'iqama est à ~7 min, pas à 30 s comme la
-  /// durée d'affichage du preview). On découple donc « durée du preview »
-  /// (combien de temps on reste figé) et « countdown affiché » (réaliste).
-  void previewMode(DisplayMode mode, {Duration duration = const Duration(seconds: 30)}) {
+  bool get isPreviewing => _previewFakeNow != null;
+
+  /// Lance un aperçu réaliste du mode [mode] : on injecte un faux instant
+  /// placé dans la fenêtre temporelle correspondante, puis la state machine
+  /// déroule la phase en temps réel (countdowns qui descendent, dou'as qui
+  /// défilent, etc.). La durée est calibrée pour montrer la séquence complète.
+  void previewMode(DisplayMode mode) {
     _previewTimer?.cancel();
+    if (_today == null) return;
+
     final fakeSlot = currentPrayer ?? PrayerSlot.dhuhr;
-    final fakeTime = _today?.all[fakeSlot] ?? _now;
+    final prayerTime = _today!.all[fakeSlot] ?? _now;
     final iqamaMin = settings.iqamaMinutes;
 
-    // Countdown réaliste selon la phase de la timeline (cf. DisplayModeMachine) :
-    //   - adhan          : 3 min restantes sur le tarteel de l'adhan
-    //   - postAdhan      : iqama dans (iqamaMin - 4) min, soit ~6 min par défaut
-    //                      (l'adhan finit à T+3min, dou'a finit à T+4min)
-    //   - iqamaCountdown : 30 dernières secondes avant l'iqama
-    //   - postPrayer     : durée restante des adhkar (~10 min)
-    final Duration realisticCountdown = switch (mode) {
-      DisplayMode.adhan => const Duration(
-          seconds: DisplayModeMachine.adhanDurationSec,
+    // Place un instant fictif au début de la phase choisie, sans tomber pile
+    // sur la frontière (sinon on transite immédiatement vers la phase suivante).
+    // Et choisit la durée du preview = ce qu'il reste de la phase + un peu.
+    final (DateTime fakeNow, Duration previewLen) = switch (mode) {
+      // Adhan : on entre 5 s après le début → 30 s d'aperçu suffisent
+      // pour voir l'animation et le countdown qui descend.
+      DisplayMode.adhan => (
+          prayerTime.add(const Duration(seconds: 5)),
+          const Duration(seconds: 30),
         ),
-      DisplayMode.postAdhan => Duration(minutes: iqamaMin - 4),
-      DisplayMode.iqamaCountdown => const Duration(
-          seconds: DisplayModeMachine.iqamaCountdownLeadSec,
+      // Post-adhan : juste après la fin de l'adhan. La fenêtre dure 60 s,
+      // assez pour les 3 dou'as à 20 s. Preview = toute la fenêtre + 2 s.
+      DisplayMode.postAdhan => (
+          prayerTime.add(const Duration(
+            seconds: DisplayModeMachine.adhanDurationSec + 1,
+          )),
+          const Duration(
+            seconds: DisplayModeMachine.postAdhanDurationSec + 2,
+          ),
         ),
-      DisplayMode.postPrayer => const Duration(
-          seconds: DisplayModeMachine.adhkarDurationSec,
+      // Iqama countdown : on entre à 29 s avant l'iqama, on reste jusqu'à 0.
+      DisplayMode.iqamaCountdown => (
+          prayerTime
+              .add(Duration(minutes: iqamaMin))
+              .subtract(const Duration(seconds: 29)),
+          const Duration(
+            seconds: DisplayModeMachine.iqamaCountdownLeadSec + 2,
+          ),
         ),
-      DisplayMode.normal => Duration.zero,
+      // Post-prière : juste après les 10 min de prière, début des adhkar.
+      // 60 s d'aperçu pour voir 3-4 slides défiler.
+      DisplayMode.postPrayer => (
+          prayerTime.add(Duration(
+            minutes: iqamaMin + 10,
+            seconds: 1,
+          )),
+          const Duration(seconds: 60),
+        ),
+      DisplayMode.normal => (_now, const Duration(seconds: 1)),
     };
 
-    _previewContext = DisplayContext(
-      mode: mode,
-      slot: fakeSlot,
-      prayerTime: fakeTime,
-      countdown: realisticCountdown,
-    );
+    _previewFakeNow = fakeNow;
+    _previewRealStartedAt = _now;
     notifyListeners();
-    _previewTimer = Timer(duration, () {
-      _previewContext = null;
+    _previewTimer = Timer(previewLen, () {
+      _previewFakeNow = null;
+      _previewRealStartedAt = null;
       notifyListeners();
     });
   }
@@ -184,7 +210,8 @@ class PrayerProvider extends ChangeNotifier {
   /// Coupe immédiatement un éventuel preview en cours.
   void cancelPreview() {
     _previewTimer?.cancel();
-    _previewContext = null;
+    _previewFakeNow = null;
+    _previewRealStartedAt = null;
     notifyListeners();
   }
 
