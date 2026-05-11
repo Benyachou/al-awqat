@@ -13,7 +13,7 @@
 //   T+iqama-30s  → countdown iqama géant
 //   T+iqama      → début de la prière, écran NORMAL pendant 10 min
 //   T+iqama+10min → début des adhkar (défilent, 3 cycles complets)
-//   T+iqama+20min → retour à l'écran normal
+//   T+iqama+23min → retour à l'écran normal
 //
 // Note : on n'a PAS d'écran "en prière" : pendant les 10 min de prière,
 // l'app affiche le HUD normal pour ne pas gêner.
@@ -78,9 +78,10 @@ class DisplayModeMachine {
   static const prayerDurationSec = 10 * 60; // 10 min
 
   /// Durée des adhkar (invocations récitées après la prière).
-  /// La liste défile 3 cycles complets ; 10 min couvrent largement
-  /// la durée des 11 dhikr × 3 répétitions.
-  static const adhkarDurationSec = 10 * 60; // 10 min
+  /// La liste défile 3 cycles complets ; 13 min couvrent la durée totale
+  /// des 11 dhikr × 3 répétitions (~3 min 45 par cycle avec les × 33
+  /// chronométrés à 25 s).
+  static const adhkarDurationSec = 13 * 60; // 13 min
 
   /// Calcule l'état d'affichage pour [now] en parcourant les 5 prières
   /// obligatoires d'aujourd'hui. Renvoie le premier mode spécial qui matche,

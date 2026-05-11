@@ -19,12 +19,19 @@ class Dua {
   final String transliteration;
   final String translation;
 
+  /// Durée d'affichage forcée pour cette slide (en secondes). Null → calculée
+  /// automatiquement à partir du nombre de mots. Utile pour les répétitions
+  /// (tasbih × 33 etc.) qui durent une trentaine de secondes en réalité même
+  /// si la formule est très courte.
+  final int? displaySeconds;
+
   const Dua({
     required this.titleFr,
     required this.titleAr,
     required this.arabic,
     required this.transliteration,
     required this.translation,
+    this.displaySeconds,
   });
 
   /// Compte le nombre de mots du texte français (séparateur = espace).
@@ -82,6 +89,7 @@ class Duas {
       arabic: 'أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ',
       transliteration: 'Astaghfiru-llâh, astaghfiru-llâh, astaghfiru-llâh',
       translation: 'Je demande pardon à Allah (à dire trois fois).',
+      displaySeconds: 12,
     ),
     Dua(
       titleFr: 'Invocation de paix',
@@ -115,6 +123,7 @@ class Duas {
       translation:
           'Gloire à Allah, à répéter trente-trois fois après chaque prière '
           'obligatoire.',
+      displaySeconds: 25,
     ),
     Dua(
       titleFr: 'Tahmid (× 33)',
@@ -124,6 +133,7 @@ class Duas {
       translation:
           'Louange à Allah, à répéter trente-trois fois après chaque prière '
           'obligatoire.',
+      displaySeconds: 25,
     ),
     Dua(
       titleFr: 'Takbir (× 33)',
@@ -133,6 +143,7 @@ class Duas {
       translation:
           'Allah est le plus Grand, à répéter trente-trois fois après chaque '
           'prière obligatoire.',
+      displaySeconds: 25,
     ),
     Dua(
       titleFr: 'Chahada — 100ème dhikr',
@@ -147,6 +158,7 @@ class Duas {
           'Il n\'y a de divinité qu\'Allah, Unique, sans associé. À Lui la '
           'royauté et la louange, et Il est puissant sur toute chose. '
           'Récitée une fois pour compléter le total à cent dhikr.',
+      displaySeconds: 15,
     ),
     Dua(
       titleFr: 'Âyat al-Kursî',
@@ -170,6 +182,7 @@ class Duas {
           'À Lui appartient tout ce qui est dans les cieux et sur la terre. '
           'Qui peut intercéder auprès de Lui sans Sa permission ? '
           '(Coran 2:255 — verset du Trône).',
+      displaySeconds: 30,
     ),
     Dua(
       titleFr: 'Sourate Al-Ikhlâs (× 3)',
@@ -184,6 +197,7 @@ class Duas {
           'Dis : « Il est Allah, Unique. Allah, le Soutien Absolu. Il n\'a '
           'jamais engendré, n\'a pas été engendré non plus, et nul n\'est '
           'égal à Lui. » (Coran 112 — à réciter trois fois).',
+      displaySeconds: 22,
     ),
     Dua(
       titleFr: 'Sourate Al-Falaq',
@@ -203,6 +217,7 @@ class Duas {
           'l\'obscurité quand elle s\'approfondit, contre le mal de celles '
           'qui soufflent sur les nœuds, et contre le mal de l\'envieux '
           'quand il envie. » (Coran 113).',
+      displaySeconds: 25,
     ),
     Dua(
       titleFr: 'Sourate An-Nâs',
@@ -220,6 +235,7 @@ class Duas {
           'des hommes, du Dieu des hommes, contre le mal du mauvais '
           'conseiller furtif, qui souffle le mal dans les poitrines des '
           'hommes, qu\'il soit djinn ou homme. » (Coran 114).',
+      displaySeconds: 25,
     ),
   ];
 }

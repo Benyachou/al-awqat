@@ -447,14 +447,16 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
     super.dispose();
   }
 
-  /// Programme le passage à la slide suivante après une durée calibrée sur
-  /// le nombre de mots. Au 3e tour, on s'arrête sur la dernière slide
-  /// (la fenêtre temporelle de 10 min suffit largement pour 3 cycles).
+  /// Programme le passage à la slide suivante après la durée définie pour
+  /// le dhikr courant. Si `displaySeconds` est renseigné on l'utilise tel quel
+  /// (utile pour les répétitions × 33 qui durent ~25 s en vrai même si le
+  /// texte est court). Sinon on calibre sur le nombre de mots : 0.7 s/mot,
+  /// plancher 8 s, plafond 25 s. Au 3ᵉ tour, la dernière slide est figée.
   void _scheduleNext() {
     final dua = Duas.afterPrayer[_index];
-    // 0.55 s par mot de la traduction française, plancher 4 s, plafond 25 s.
-    final words = dua.wordCount;
-    final seconds = (words * 0.55).clamp(4.0, 25.0);
+    final double seconds = dua.displaySeconds != null
+        ? dua.displaySeconds!.toDouble()
+        : (dua.wordCount * 0.7).clamp(8.0, 25.0);
     _timer = Timer(Duration(milliseconds: (seconds * 1000).round()), () {
       if (!mounted) return;
       final isLastSlide = _index == Duas.afterPrayer.length - 1;
@@ -610,7 +612,7 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
   }
 }
 
-/// Bandeau en bas d'écran : nom mosquée + 5 prières + heures.
+/// Bandeau en bas d'écran : nom mosquée + 5 prières + heure courante.
 /// Présent sur TOUS les overlays (adhan, post-adhan, iqama, post-prière)
 /// pour ne jamais masquer la fonction première de l'app.
 ///
@@ -636,18 +638,27 @@ class _MiniSchedule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hPad = large ? 26.0 : 18.0;
-    final vPad = large ? 16.0 : 10.0;
-    final mosqueeSize = large ? 18.0 : 13.0;
-    final gap = large ? 22.0 : 14.0;
+    // Tailles agrandies par rapport à la version compacte précédente — la
+    // mini-barre doit rester lisible à 2-3 m de l'écran (TV de mosquée).
+    final hPad = large ? 36.0 : 26.0;
+    final vPad = large ? 22.0 : 16.0;
+    final mosqueeSize = large ? 26.0 : 20.0;
+    final gap = large ? 28.0 : 22.0;
+    final clockSize = large ? 38.0 : 30.0;
+    // L'horloge est rafraîchie à chaque rebuild du parent (les overlays sont
+    // dans un Consumer<PrayerProvider> qui notifie chaque seconde).
+    final now = DateTime.now();
+    final hh = now.hour.toString().padLeft(2, '0');
+    final mm = now.minute.toString().padLeft(2, '0');
+    final ss = now.second.toString().padLeft(2, '0');
     return Container(
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.60),
+        color: Colors.black.withValues(alpha: 0.65),
         border: Border(
           top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.18),
-            width: 1,
+            color: Colors.white.withValues(alpha: 0.22),
+            width: 1.5,
           ),
         ),
       ),
@@ -674,6 +685,19 @@ class _MiniSchedule extends StatelessWidget {
               large: large,
             ),
           ],
+          const Spacer(),
+          // Horloge en direct, met visuellement la barre en vie et donne
+          // un repère instantané de l'heure courante.
+          Text(
+            '$hh:$mm:$ss',
+            style: TextStyle(
+              fontSize: clockSize,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.highlight,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              shadows: AppTheme.textShadow,
+            ),
+          ),
         ],
       ),
     );
@@ -694,8 +718,8 @@ class _MiniSlot extends StatelessWidget {
   Widget build(BuildContext context) {
     final hh = time.hour.toString().padLeft(2, '0');
     final mm = time.minute.toString().padLeft(2, '0');
-    final nameSize = large ? 14.0 : 11.0;
-    final timeSize = large ? 24.0 : 16.0;
+    final nameSize = large ? 22.0 : 16.0;
+    final timeSize = large ? 32.0 : 24.0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
