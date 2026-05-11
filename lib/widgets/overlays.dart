@@ -22,12 +22,10 @@ class AdhanOverlay extends StatelessWidget {
     required this.slot,
     required this.countdown,
     required this.today,
-    required this.mosqueeName,
   });
   final PrayerSlot slot;
   final Duration countdown;
   final PrayerSchedule today;
-  final String mosqueeName;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +148,7 @@ class AdhanOverlay extends StatelessWidget {
                   ],
                 ),
               ),
-              _MiniSchedule(today: today, mosqueeName: mosqueeName),
+              _MiniSchedule(today: today),
             ],
           ),
         ),
@@ -223,11 +221,9 @@ class PostAdhanOverlay extends StatefulWidget {
     super.key,
     required this.countdown,
     required this.today,
-    required this.mosqueeName,
   });
   final Duration countdown;
   final PrayerSchedule today;
-  final String mosqueeName;
 
   @override
   State<PostAdhanOverlay> createState() => _PostAdhanOverlayState();
@@ -355,7 +351,7 @@ class _PostAdhanOverlayState extends State<PostAdhanOverlay> {
                 ),
               ),
             ),
-            _MiniSchedule(today: widget.today, mosqueeName: widget.mosqueeName),
+            _MiniSchedule(today: widget.today),
           ],
         ),
       ),
@@ -371,12 +367,10 @@ class IqamaCountdownOverlay extends StatelessWidget {
     required this.slot,
     required this.countdown,
     required this.today,
-    required this.mosqueeName,
   });
   final PrayerSlot slot;
   final Duration countdown;
   final PrayerSchedule today;
-  final String mosqueeName;
 
   @override
   Widget build(BuildContext context) {
@@ -443,7 +437,7 @@ class IqamaCountdownOverlay extends StatelessWidget {
                 ],
               ),
             ),
-            _MiniSchedule(today: today, mosqueeName: mosqueeName),
+            _MiniSchedule(today: today),
           ],
         ),
       ),
@@ -464,16 +458,12 @@ class PostPrayerOverlay extends StatefulWidget {
     super.key,
     required this.countdown,
     required this.today,
-    required this.mosqueeName,
   });
   final Duration countdown;
 
   /// Schedule du jour, nécessaire pour la mini-barre du bas qui affiche
   /// les horaires des 5 prières.
   final PrayerSchedule today;
-
-  /// Nom de la mosquée affiché en bas à gauche de la mini-barre.
-  final String mosqueeName;
 
   @override
   State<PostPrayerOverlay> createState() => _PostPrayerOverlayState();
@@ -655,7 +645,6 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
             // et l'utilisateur a besoin de voir clairement les horaires.
             _MiniSchedule(
               today: widget.today,
-              mosqueeName: widget.mosqueeName,
               large: true,
             ),
           ],
@@ -674,11 +663,9 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
 class _MiniSchedule extends StatelessWidget {
   const _MiniSchedule({
     required this.today,
-    required this.mosqueeName,
     this.large = false,
   });
   final PrayerSchedule today;
-  final String mosqueeName;
   final bool large;
 
   static const _slots = [
@@ -691,28 +678,34 @@ class _MiniSchedule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Mise en page sur 2 lignes pour bien aérer :
-    //   ligne 1 : [nom mosquée]               [horloge HH:MM:SS]
-    //   ligne 2 : Fajr   Dhuhr   Asr   Maghrib   Isha  (spaceBetween)
-    //             05:42  12:48   16:30  19:15    20:42
-    final hPad = large ? 40.0 : 30.0;
+    // === Échelle des tailles selon le mode ===
+    final hPad = large ? 36.0 : 26.0;
     final vPad = large ? 22.0 : 16.0;
-    final mosqueeSize = large ? 26.0 : 20.0;
-    final clockSize = large ? 44.0 : 34.0;
-    final betweenRowsGap = large ? 14.0 : 10.0;
+    final clockSize = large ? 56.0 : 42.0;
+    final separatorGap = large ? 14.0 : 10.0;
+
     // L'horloge est rafraîchie à chaque rebuild du parent (les overlays sont
     // dans un Consumer<PrayerProvider> qui notifie chaque seconde).
     final now = DateTime.now();
     final hh = now.hour.toString().padLeft(2, '0');
     final mm = now.minute.toString().padLeft(2, '0');
     final ss = now.second.toString().padLeft(2, '0');
+
     return Container(
       padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.65),
+        // Dégradé subtil de fond pour donner de la profondeur au bandeau.
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.45),
+            Colors.black.withValues(alpha: 0.80),
+          ],
+        ),
         border: Border(
           top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.22),
+            color: AppTheme.highlight.withValues(alpha: 0.55),
             width: 1.5,
           ),
         ),
@@ -720,39 +713,81 @@ class _MiniSchedule extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Ligne 1 : nom mosquée à gauche, horloge en direct à droite.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  mosqueeName,
-                  style: TextStyle(
-                    fontSize: mosqueeSize,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                    shadows: AppTheme.textShadow,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+          // === Bloc central : horloge en gros, centrée ===
+          // Pilule glass légèrement liserée d'or pour la mettre en valeur.
+          Center(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: large ? 40 : 32,
+                vertical: large ? 10 : 6,
               ),
-              const Spacer(),
-              Text(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.black.withValues(alpha: 0.35),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(
+                  color: AppTheme.highlight.withValues(alpha: 0.40),
+                  width: 1.3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.highlight.withValues(alpha: 0.15),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Text(
                 '$hh:$mm:$ss',
                 style: TextStyle(
                   fontSize: clockSize,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.highlight,
+                  letterSpacing: 3,
+                  height: 1,
                   fontFeatures: const [FontFeature.tabularFigures()],
-                  shadows: AppTheme.textShadow,
+                  shadows: [
+                    Shadow(
+                      color: AppTheme.highlight.withValues(alpha: 0.55),
+                      blurRadius: 22,
+                    ),
+                    const Shadow(
+                      color: Colors.black87,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-          SizedBox(height: betweenRowsGap),
-          // Ligne 2 : 5 prières bien espacées sur toute la largeur.
+          SizedBox(height: separatorGap),
+          // === Séparateur doré dégradé ===
+          // Trait fin qui s'estompe sur les bords pour un effet élégant.
+          Container(
+            height: 1.2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.highlight.withValues(alpha: 0.0),
+                  AppTheme.highlight.withValues(alpha: 0.55),
+                  AppTheme.highlight.withValues(alpha: 0.55),
+                  AppTheme.highlight.withValues(alpha: 0.0),
+                ],
+                stops: const [0.0, 0.28, 0.72, 1.0],
+              ),
+            ),
+          ),
+          SizedBox(height: separatorGap),
+          // === Pilules glass des 5 prières, bien espacées ===
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               for (final slot in _slots)
                 _MiniSlot(
@@ -768,6 +803,10 @@ class _MiniSchedule extends StatelessWidget {
   }
 }
 
+/// Pilule glass d'une prière dans la mini-barre. Style cohérent avec
+/// le reste de l'app (bulles arrondies, fond sombre semi-transparent,
+/// liseré subtil). Le nom est en uppercase espacé pour évoquer les
+/// affichages typographiques des grandes mosquées.
 class _MiniSlot extends StatelessWidget {
   const _MiniSlot({
     required this.name,
@@ -782,31 +821,61 @@ class _MiniSlot extends StatelessWidget {
   Widget build(BuildContext context) {
     final hh = time.hour.toString().padLeft(2, '0');
     final mm = time.minute.toString().padLeft(2, '0');
-    final nameSize = large ? 22.0 : 16.0;
-    final timeSize = large ? 32.0 : 24.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          name,
-          style: TextStyle(
-            fontSize: nameSize,
-            color: AppTheme.textSecondary,
-            letterSpacing: 1,
-            shadows: AppTheme.textShadow,
-          ),
+    final nameSize = large ? 14.0 : 11.0;
+    final timeSize = large ? 30.0 : 22.0;
+    final hPad = large ? 22.0 : 16.0;
+    final vPad = large ? 12.0 : 9.0;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0.07),
+            Colors.black.withValues(alpha: 0.35),
+          ],
         ),
-        Text(
-          '$hh:$mm',
-          style: TextStyle(
-            fontSize: timeSize,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-            fontFeatures: const [FontFeature.tabularFigures()],
-            shadows: AppTheme.textShadow,
-          ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 1,
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.30),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            name.toUpperCase(),
+            style: TextStyle(
+              fontSize: nameSize,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary.withValues(alpha: 0.85),
+              letterSpacing: 3,
+              shadows: AppTheme.textShadow,
+            ),
+          ),
+          SizedBox(height: large ? 4 : 2),
+          Text(
+            '$hh:$mm',
+            style: TextStyle(
+              fontSize: timeSize,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textPrimary,
+              height: 1,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              shadows: AppTheme.textShadow,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

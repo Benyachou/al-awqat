@@ -65,26 +65,22 @@ class HomeScreen extends StatelessWidget {
           slot: ctx.slot!,
           countdown: ctx.countdown!,
           today: prayer.today!,
-          mosqueeName: prayer.settings.mosqueeName,
         );
       case DisplayMode.postAdhan:
         return PostAdhanOverlay(
           countdown: ctx.countdown!,
           today: prayer.today!,
-          mosqueeName: prayer.settings.mosqueeName,
         );
       case DisplayMode.iqamaCountdown:
         return IqamaCountdownOverlay(
           slot: ctx.slot!,
           countdown: ctx.countdown!,
           today: prayer.today!,
-          mosqueeName: prayer.settings.mosqueeName,
         );
       case DisplayMode.postPrayer:
         return PostPrayerOverlay(
           countdown: ctx.countdown!,
           today: prayer.today!,
-          mosqueeName: prayer.settings.mosqueeName,
         );
       case DisplayMode.normal:
         return _MainView(key: const ValueKey('main'), prayer: prayer);
