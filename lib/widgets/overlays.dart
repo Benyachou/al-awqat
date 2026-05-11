@@ -212,12 +212,13 @@ class _PulsingHaloState extends State<_PulsingHalo>
   }
 }
 
-/// Affiche l'invocation à réciter juste après l'adhan.
+/// Fait défiler les invocations à réciter juste après l'adhan : témoignage
+/// (Muslim 386), salât 'alâ-n-Nabî, puis dou'a du wasîla (Bukhârî 614).
 ///
-/// Comme pour les adhkar post-prière, on garde en permanence la mini-barre
-/// des horaires en bas d'écran : afficher les horaires reste la fonction
-/// première de l'app, on ne la masque jamais entièrement.
-class PostAdhanOverlay extends StatelessWidget {
+/// Les 3 dou'as s'enchaînent dans la fenêtre de 60 s (≈ 20 s chacune).
+/// La mini-barre des horaires reste visible en bas pour ne jamais perdre
+/// la fonction première de l'app.
+class PostAdhanOverlay extends StatefulWidget {
   const PostAdhanOverlay({
     super.key,
     required this.countdown,
@@ -228,6 +229,40 @@ class PostAdhanOverlay extends StatelessWidget {
   final PrayerSchedule today;
   final String mosqueeName;
 
+  @override
+  State<PostAdhanOverlay> createState() => _PostAdhanOverlayState();
+}
+
+class _PostAdhanOverlayState extends State<PostAdhanOverlay> {
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleNext();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleNext() {
+    final dua = Duas.afterAdhan[_index];
+    final double seconds = dua.displaySeconds != null
+        ? dua.displaySeconds!.toDouble()
+        : (dua.wordCount * 0.5).clamp(6.0, 20.0);
+    _timer = Timer(Duration(milliseconds: (seconds * 1000).round()), () {
+      if (!mounted) return;
+      final isLast = _index == Duas.afterAdhan.length - 1;
+      if (isLast) return; // on fige la dernière slide jusqu'à l'iqama
+      setState(() => _index += 1);
+      _scheduleNext();
+    });
+  }
+
   String _fmt(Duration d) {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
@@ -236,7 +271,8 @@ class PostAdhanOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dua = Duas.afterAdhan;
+    final dua = Duas.afterAdhan[_index];
+    final total = Duas.afterAdhan.length;
     return Container(
       key: const ValueKey('postAdhan'),
       decoration: const BoxDecoration(
@@ -252,58 +288,74 @@ class PostAdhanOverlay extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      dua.titleAr,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFFD54F),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      dua.titleFr,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: AppTheme.textSecondary,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: Text(
-                        dua.arabic,
-                        textAlign: TextAlign.center,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 500),
+                  child: Column(
+                    key: ValueKey(_index),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        dua.titleAr,
                         style: const TextStyle(
-                          fontSize: 36,
-                          height: 1.7,
-                          color: AppTheme.textPrimary,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFFFD54F),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      dua.translation,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontStyle: FontStyle.italic,
-                        color: AppTheme.textPrimary.withValues(alpha: 0.85),
-                        height: 1.5,
+                      const SizedBox(height: 8),
+                      Text(
+                        '${dua.titleFr} — ${_index + 1} / $total',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.textSecondary,
+                          letterSpacing: 2,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    _CountdownChip(label: 'Iqama dans', value: _fmt(countdown)),
-                  ],
+                      const SizedBox(height: 28),
+                      Directionality(
+                        textDirection: TextDirection.rtl,
+                        child: Text(
+                          dua.arabic,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 32,
+                            height: 1.7,
+                            color: AppTheme.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        dua.transliteration,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color:
+                              AppTheme.textSecondary.withValues(alpha: 0.9),
+                          fontStyle: FontStyle.italic,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        dua.translation,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppTheme.textPrimary.withValues(alpha: 0.92),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _CountdownChip(
+                          label: 'Iqama dans', value: _fmt(widget.countdown)),
+                    ],
+                  ),
                 ),
               ),
             ),
-            _MiniSchedule(today: today, mosqueeName: mosqueeName),
+            _MiniSchedule(today: widget.today, mosqueeName: widget.mosqueeName),
           ],
         ),
       ),
@@ -449,14 +501,15 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
 
   /// Programme le passage à la slide suivante après la durée définie pour
   /// le dhikr courant. Si `displaySeconds` est renseigné on l'utilise tel quel
-  /// (utile pour les répétitions × 33 qui durent ~25 s en vrai même si le
-  /// texte est court). Sinon on calibre sur le nombre de mots : 0.7 s/mot,
-  /// plancher 8 s, plafond 25 s. Au 3ᵉ tour, la dernière slide est figée.
+  /// (utile pour les répétitions × 33). Sinon on calibre sur le nombre de
+  /// mots : 0.5 s/mot, plancher 6 s, plafond 20 s — aucune slide ne reste
+  /// plus de 20 secondes pour garder un rythme soutenu. Au 3ᵉ tour, la
+  /// dernière slide est figée.
   void _scheduleNext() {
     final dua = Duas.afterPrayer[_index];
     final double seconds = dua.displaySeconds != null
         ? dua.displaySeconds!.toDouble()
-        : (dua.wordCount * 0.7).clamp(8.0, 25.0);
+        : (dua.wordCount * 0.5).clamp(6.0, 20.0);
     _timer = Timer(Duration(milliseconds: (seconds * 1000).round()), () {
       if (!mounted) return;
       final isLastSlide = _index == Duas.afterPrayer.length - 1;
@@ -638,13 +691,15 @@ class _MiniSchedule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tailles agrandies par rapport à la version compacte précédente — la
-    // mini-barre doit rester lisible à 2-3 m de l'écran (TV de mosquée).
-    final hPad = large ? 36.0 : 26.0;
+    // Mise en page sur 2 lignes pour bien aérer :
+    //   ligne 1 : [nom mosquée]               [horloge HH:MM:SS]
+    //   ligne 2 : Fajr   Dhuhr   Asr   Maghrib   Isha  (spaceBetween)
+    //             05:42  12:48   16:30  19:15    20:42
+    final hPad = large ? 40.0 : 30.0;
     final vPad = large ? 22.0 : 16.0;
     final mosqueeSize = large ? 26.0 : 20.0;
-    final gap = large ? 28.0 : 22.0;
-    final clockSize = large ? 38.0 : 30.0;
+    final clockSize = large ? 44.0 : 34.0;
+    final betweenRowsGap = large ? 14.0 : 10.0;
     // L'horloge est rafraîchie à chaque rebuild du parent (les overlays sont
     // dans un Consumer<PrayerProvider> qui notifie chaque seconde).
     final now = DateTime.now();
@@ -662,41 +717,50 @@ class _MiniSchedule extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Flexible(
-            child: Text(
-              mosqueeName,
-              style: TextStyle(
-                fontSize: mosqueeSize,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-                shadows: AppTheme.textShadow,
+          // Ligne 1 : nom mosquée à gauche, horloge en direct à droite.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  mosqueeName,
+                  style: TextStyle(
+                    fontSize: mosqueeSize,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                    shadows: AppTheme.textShadow,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
+              const Spacer(),
+              Text(
+                '$hh:$mm:$ss',
+                style: TextStyle(
+                  fontSize: clockSize,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.highlight,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  shadows: AppTheme.textShadow,
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: gap),
-          for (final slot in _slots) ...[
-            SizedBox(width: gap),
-            _MiniSlot(
-              name: PrayerNames.french[slot.name]!,
-              time: today.all[slot]!,
-              large: large,
-            ),
-          ],
-          const Spacer(),
-          // Horloge en direct, met visuellement la barre en vie et donne
-          // un repère instantané de l'heure courante.
-          Text(
-            '$hh:$mm:$ss',
-            style: TextStyle(
-              fontSize: clockSize,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.highlight,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              shadows: AppTheme.textShadow,
-            ),
+          SizedBox(height: betweenRowsGap),
+          // Ligne 2 : 5 prières bien espacées sur toute la largeur.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (final slot in _slots)
+                _MiniSlot(
+                  name: PrayerNames.french[slot.name]!,
+                  time: today.all[slot]!,
+                  large: large,
+                ),
+            ],
           ),
         ],
       ),

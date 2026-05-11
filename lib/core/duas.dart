@@ -42,25 +42,77 @@ class Dua {
 
 class Duas {
   // ===========================================================================
-  // Invocation à réciter juste après que le mu'adhin a fini l'adhan.
+  // Invocations à réciter juste après que le mu'adhin a fini l'adhan.
+  //
+  // Trois dou'as authentiques s'enchaînent pendant la minute post-adhan :
+  //   1. Témoignage (rapporté par Muslim 386) : « ash-hadu allâ ilâha…
+  //      raditu bi-llâhi rabban, wa bi-Muhammadin rasûlan, wa bi-l-islâmi
+  //      dînan » → pardon des péchés mineurs.
+  //   2. Salât 'alâ-n-Nabî (Muslim 384) : envoyer les bénédictions sur le
+  //      Prophète. Précède l'invocation pour le wasîla.
+  //   3. Allâhumma rabba hâdhihi-d-da'wati… (Bukhârî 614) version complète
+  //      avec « innaka lâ tukhlifu-l-mî'âd » à la fin → droit à l'intercession
+  //      du Prophète au Jour de la Résurrection.
   // ===========================================================================
-  static const Dua afterAdhan = Dua(
-    titleFr: 'Invocation après l\'adhan',
-    titleAr: 'دعاء ما بعد الأذان',
-    arabic:
-        'اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلاَةِ الْقَائِمَةِ، '
-        'آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ، '
-        'وَابْعَثْهُ مَقَامًا مَحْمُودًا الَّذِي وَعَدْتَهُ',
-    transliteration:
-        'Allâhumma rabba hâdhihi-d-da\'wati-t-tâmmati was-salâti-l-qâ\'imati, '
-        'âti Muhammadan-il-wasîlata wal-fadîlata, '
-        'wab\'ath-hu maqâman mahmûdan-il-ladhî wa\'ad-tah',
-    translation:
-        'Ô Allah, Maître de cet appel parfait et de la prière qui va être '
-        'accomplie, donne à Mohammed le pouvoir d\'intercéder (le Jour du '
-        'Jugement) et la place d\'honneur [au Paradis], et ressuscite-le dans '
-        'la position louable que Tu lui as promise.',
-  );
+  static const List<Dua> afterAdhan = [
+    Dua(
+      titleFr: 'Témoignage après l\'adhan',
+      titleAr: 'الشهادة بعد الأذان',
+      arabic:
+          'وَأَنَا أَشْهَدُ أَنْ لاَ إِلَهَ إِلاَّ اللَّهُ وَحْدَهُ لاَ شَرِيكَ لَهُ، '
+          'وَأَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ، '
+          'رَضِيتُ بِاللَّهِ رَبًّا، وَبِمُحَمَّدٍ رَسُولًا، وَبِالإِسْلاَمِ دِينًا',
+      transliteration:
+          'Wa anâ ash-hadu allâ ilâha illâ-llâhu wahdahu lâ sharîka lah, '
+          'wa anna Muhammadan \'abduhu wa rasûluh, '
+          'raditu bi-llâhi rabban, wa bi-Muhammadin rasûlan, wa bi-l-islâmi dînan',
+      translation:
+          'Et moi aussi je témoigne qu\'il n\'y a de divinité qu\'Allah, Lui '
+          'Seul sans associé, et que Muhammad est Son serviteur et Son '
+          'messager. Je suis satisfait d\'avoir Allah pour Seigneur, '
+          'Muhammad pour Messager et l\'Islam pour religion. '
+          '(rapporté par Muslim)',
+      displaySeconds: 20,
+    ),
+    Dua(
+      titleFr: 'Bénédictions sur le Prophète',
+      titleAr: 'الصلاة على النبي ﷺ',
+      arabic:
+          'اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ، '
+          'كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ، '
+          'إِنَّكَ حَمِيدٌ مَجِيدٌ',
+      transliteration:
+          'Allâhumma sallî \'alâ Muhammadin wa \'alâ âli Muhammad, '
+          'kamâ sallayta \'alâ Ibrâhîma wa \'alâ âli Ibrâhîm, '
+          'innaka hamîdun majîd',
+      translation:
+          'Ô Allah, accorde Tes bénédictions à Muhammad et à la famille de '
+          'Muhammad, comme Tu en as accordé à Abraham et à la famille '
+          'd\'Abraham. Tu es certes Digne de Louange et de Gloire.',
+      displaySeconds: 20,
+    ),
+    Dua(
+      titleFr: 'Invocation du wasîla',
+      titleAr: 'دعاء الوسيلة',
+      arabic:
+          'اللَّهُمَّ رَبَّ هَذِهِ الدَّعْوَةِ التَّامَّةِ وَالصَّلاَةِ الْقَائِمَةِ، '
+          'آتِ مُحَمَّدًا الْوَسِيلَةَ وَالْفَضِيلَةَ، '
+          'وَابْعَثْهُ مَقَامًا مَحْمُودًا الَّذِي وَعَدْتَهُ، '
+          'إِنَّكَ لاَ تُخْلِفُ الْمِيعَادَ',
+      transliteration:
+          'Allâhumma rabba hâdhihi-d-da\'wati-t-tâmmati wa-s-salâti-l-qâ\'imati, '
+          'âti Muhammadan-il-wasîlata wa-l-fadîlata, '
+          'wab\'ath-hu maqâman mahmûdan-il-ladhî wa\'ad-tah, '
+          'innaka lâ tukhlifu-l-mî\'âd',
+      translation:
+          'Ô Allah, Maître de cet appel parfait et de la prière qui va être '
+          'accomplie, donne à Muhammad le pouvoir d\'intercéder le Jour du '
+          'Jugement et la place d\'honneur au Paradis, et ressuscite-le dans '
+          'la position louable que Tu lui as promise. Certes, Tu ne manques '
+          'jamais à Ta promesse.',
+      displaySeconds: 20,
+    ),
+  ];
 
   // ===========================================================================
   // Adhkar récités après la prière obligatoire. Tirés des recueils
@@ -89,7 +141,7 @@ class Duas {
       arabic: 'أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ، أَسْتَغْفِرُ اللَّهَ',
       transliteration: 'Astaghfiru-llâh, astaghfiru-llâh, astaghfiru-llâh',
       translation: 'Je demande pardon à Allah (à dire trois fois).',
-      displaySeconds: 12,
+      displaySeconds: 10,
     ),
     Dua(
       titleFr: 'Invocation de paix',
@@ -123,7 +175,7 @@ class Duas {
       translation:
           'Gloire à Allah, à répéter trente-trois fois après chaque prière '
           'obligatoire.',
-      displaySeconds: 25,
+      displaySeconds: 18,
     ),
     Dua(
       titleFr: 'Tahmid (× 33)',
@@ -133,7 +185,7 @@ class Duas {
       translation:
           'Louange à Allah, à répéter trente-trois fois après chaque prière '
           'obligatoire.',
-      displaySeconds: 25,
+      displaySeconds: 18,
     ),
     Dua(
       titleFr: 'Takbir (× 33)',
@@ -143,7 +195,7 @@ class Duas {
       translation:
           'Allah est le plus Grand, à répéter trente-trois fois après chaque '
           'prière obligatoire.',
-      displaySeconds: 25,
+      displaySeconds: 18,
     ),
     Dua(
       titleFr: 'Chahada — 100ème dhikr',
@@ -158,7 +210,7 @@ class Duas {
           'Il n\'y a de divinité qu\'Allah, Unique, sans associé. À Lui la '
           'royauté et la louange, et Il est puissant sur toute chose. '
           'Récitée une fois pour compléter le total à cent dhikr.',
-      displaySeconds: 15,
+      displaySeconds: 12,
     ),
     Dua(
       titleFr: 'Âyat al-Kursî',
@@ -173,16 +225,24 @@ class Duas {
           'وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالأَرْضَ، '
           'وَلاَ يَؤُودُهُ حِفْظُهُمَا، وَهُوَ الْعَلِيُّ الْعَظِيمُ',
       transliteration:
-          'Allâhu lâ ilâha illâ huwa-l-hayyu-l-qayyûm, lâ ta\'khudhuhu sinatun '
-          'wa lâ nawm, lahu mâ fî-s-samâwâti wa mâ fî-l-ard, man dhâ-lladhî '
-          'yashfa\'u \'indahu illâ bi-idhnih...',
+          'Allâhu lâ ilâha illâ huwa-l-hayyu-l-qayyûm, '
+          'lâ ta\'khudhuhu sinatun wa lâ nawm, '
+          'lahu mâ fî-s-samâwâti wa mâ fî-l-ard, '
+          'man dhâ-lladhî yashfa\'u \'indahu illâ bi-idhnih, '
+          'ya\'lamu mâ bayna aydîhim wa mâ khalfahum, '
+          'wa lâ yuhîtûna bi-shay\'in min \'ilmihi illâ bi-mâ shâ\', '
+          'wasi\'a kursiyyuhu-s-samâwâti wa-l-ard, '
+          'wa lâ ya\'ûduhu hifzhuhumâ, wa huwa-l-\'aliyyu-l-\'azhîm',
       translation:
-          'Allah, point de divinité à part Lui, le Vivant, Celui qui '
-          'subsiste par lui-même. Ni somnolence ni sommeil ne Le saisissent. '
-          'À Lui appartient tout ce qui est dans les cieux et sur la terre. '
-          'Qui peut intercéder auprès de Lui sans Sa permission ? '
-          '(Coran 2:255 — verset du Trône).',
-      displaySeconds: 30,
+          'Allah, point de divinité à part Lui, le Vivant, Celui qui subsiste '
+          'par Lui-même. Ni somnolence ni sommeil ne Le saisissent. À Lui '
+          'appartient tout ce qui est dans les cieux et sur la terre. Qui '
+          'peut intercéder auprès de Lui sans Sa permission ? Il connaît leur '
+          'passé et leur futur. Et de Sa science, ils n\'embrassent que ce '
+          'qu\'Il veut. Son Trône déborde les cieux et la terre, dont la '
+          'garde ne Lui coûte aucune peine. Et Il est Le Très-Haut, '
+          'L\'Immense. (Coran 2:255 — verset du Trône).',
+      displaySeconds: 20,
     ),
     Dua(
       titleFr: 'Sourate Al-Ikhlâs (× 3)',
@@ -197,7 +257,7 @@ class Duas {
           'Dis : « Il est Allah, Unique. Allah, le Soutien Absolu. Il n\'a '
           'jamais engendré, n\'a pas été engendré non plus, et nul n\'est '
           'égal à Lui. » (Coran 112 — à réciter trois fois).',
-      displaySeconds: 22,
+      displaySeconds: 18,
     ),
     Dua(
       titleFr: 'Sourate Al-Falaq',
@@ -217,7 +277,7 @@ class Duas {
           'l\'obscurité quand elle s\'approfondit, contre le mal de celles '
           'qui soufflent sur les nœuds, et contre le mal de l\'envieux '
           'quand il envie. » (Coran 113).',
-      displaySeconds: 25,
+      displaySeconds: 20,
     ),
     Dua(
       titleFr: 'Sourate An-Nâs',
@@ -235,7 +295,7 @@ class Duas {
           'des hommes, du Dieu des hommes, contre le mal du mauvais '
           'conseiller furtif, qui souffle le mal dans les poitrines des '
           'hommes, qu\'il soit djinn ou homme. » (Coran 114).',
-      displaySeconds: 25,
+      displaySeconds: 20,
     ),
   ];
 }
