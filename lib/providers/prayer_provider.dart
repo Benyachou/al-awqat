@@ -136,15 +136,42 @@ class PrayerProvider extends ChangeNotifier {
   /// Force l'affichage du mode [mode] pendant [duration] secondes. Au bout
   /// du timer, le contexte normal reprend la main. Si on appelle plusieurs
   /// fois, le précédent timer est annulé.
+  ///
+  /// Important : le `countdown` affiché dans l'overlay est calculé en
+  /// fonction du mode pour rester COHÉRENT avec la timeline réelle (ex :
+  /// pendant le dou'a post-adhan, l'iqama est à ~7 min, pas à 30 s comme la
+  /// durée d'affichage du preview). On découple donc « durée du preview »
+  /// (combien de temps on reste figé) et « countdown affiché » (réaliste).
   void previewMode(DisplayMode mode, {Duration duration = const Duration(seconds: 30)}) {
     _previewTimer?.cancel();
     final fakeSlot = currentPrayer ?? PrayerSlot.dhuhr;
     final fakeTime = _today?.all[fakeSlot] ?? _now;
+    final iqamaMin = settings.iqamaMinutes;
+
+    // Countdown réaliste selon la phase de la timeline (cf. DisplayModeMachine) :
+    //   - adhan          : ~2 min restantes sur le tarteel de l'adhan
+    //   - postAdhan      : iqama dans (iqamaMin - 3) min, soit ~7 min par défaut
+    //   - iqamaCountdown : 30 dernières secondes avant l'iqama
+    //   - postPrayer     : durée restante des adhkar (~10 min)
+    final Duration realisticCountdown = switch (mode) {
+      DisplayMode.adhan => const Duration(
+          seconds: DisplayModeMachine.adhanDurationSec,
+        ),
+      DisplayMode.postAdhan => Duration(minutes: iqamaMin - 3),
+      DisplayMode.iqamaCountdown => const Duration(
+          seconds: DisplayModeMachine.iqamaCountdownLeadSec,
+        ),
+      DisplayMode.postPrayer => const Duration(
+          seconds: DisplayModeMachine.adhkarDurationSec,
+        ),
+      DisplayMode.normal => Duration.zero,
+    };
+
     _previewContext = DisplayContext(
       mode: mode,
       slot: fakeSlot,
       prayerTime: fakeTime,
-      countdown: duration,
+      countdown: realisticCountdown,
     );
     notifyListeners();
     _previewTimer = Timer(duration, () {
