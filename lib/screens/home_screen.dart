@@ -295,6 +295,7 @@ class _MainView extends StatelessWidget {
                         iqamaMinutes: settings.iqamaMinutes,
                         showIqama: _orderedSlots[i] != PrayerSlot.sunrise,
                         scale: settings.cardScale * settings.fontScale,
+                        now: prayer.now,
                         state: _stateFor(
                           _orderedSlots[i],
                           current,

@@ -38,6 +38,7 @@ class PrayerCard extends StatelessWidget {
     this.fillProgress,
     this.jumuahLabel,
     this.scale = 1.0,
+    this.now,
   });
 
   /// Identifiant de la prière (fajr, dhuhr, ...). Dérive son label.
@@ -73,6 +74,11 @@ class PrayerCard extends StatelessWidget {
   /// Facteur multiplicatif pour toutes les tailles internes (fontSize,
   /// paddings, SizedBox). Vient de settings.cardScale × settings.fontScale.
   final double scale;
+
+  /// Heure courante. Optionnel — si fourni ET que la carte est en état
+  /// `current`, le badge iqama devient un compte à rebours dynamique
+  /// (`Iqama 03:42`) au lieu du badge statique `+10'`.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context) {
@@ -181,21 +187,11 @@ class PrayerCard extends StatelessWidget {
                     ),
                     if (showIqama) ...[
                       SizedBox(height: 6 * scale),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 8 * scale, vertical: 2 * scale),
-                        decoration: BoxDecoration(
-                          color: colors.fg.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '+$iqamaMinutes\'',
-                          style: TextStyle(
-                            fontSize: 13 * scale,
-                            fontWeight: FontWeight.w600,
-                            color: colors.fg,
-                          ),
-                        ),
+                      _IqamaBadge(
+                        text: _iqamaBadgeText(),
+                        highlighted: _isCurrentBeforeIqama(),
+                        fg: colors.fg,
+                        scale: scale,
                       ),
                     ],
                   ],
@@ -206,6 +202,33 @@ class PrayerCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Vrai si on est sur la carte de la prière COURANTE et qu'on n'a pas
+  /// encore atteint l'heure de l'iqama. C'est dans cette fenêtre qu'on
+  /// montre un VRAI compte à rebours (MM:SS qui décroît).
+  bool _isCurrentBeforeIqama() {
+    if (state != PrayerCardState.current || now == null) return false;
+    final iqamaAt = time.add(Duration(minutes: iqamaMinutes));
+    return now!.isBefore(iqamaAt);
+  }
+
+  /// Texte du badge iqama :
+  ///   - prière courante avant iqama : « Iqama  03:42 » (countdown live)
+  ///   - prière courante après iqama : « En prière » (badge calme)
+  ///   - autres cas : « +10' » (offset statique de la mosquée)
+  String _iqamaBadgeText() {
+    if (state == PrayerCardState.current && now != null) {
+      final iqamaAt = time.add(Duration(minutes: iqamaMinutes));
+      final remaining = iqamaAt.difference(now!);
+      if (remaining.isNegative || remaining == Duration.zero) {
+        return 'En prière';
+      }
+      final m = remaining.inMinutes;
+      final s = remaining.inSeconds % 60;
+      return 'Iqama  ${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '+$iqamaMinutes\'';
   }
 
   _CardColors _colorsFor(PrayerCardState state) {
@@ -243,6 +266,78 @@ class PrayerCard extends StatelessWidget {
           fillBottom: Colors.transparent,
         );
     }
+  }
+}
+
+/// Badge sous l'heure de la prière. En statique : pilule discrète avec le
+/// délai mosquée (« +10' »). En mode countdown (prière courante avant
+/// iqama) : pilule plus marquée avec halo doré, chiffres tabulaires et
+/// icône de timer pour signaler que ça tourne en direct.
+class _IqamaBadge extends StatelessWidget {
+  const _IqamaBadge({
+    required this.text,
+    required this.highlighted,
+    required this.fg,
+    required this.scale,
+  });
+  final String text;
+  final bool highlighted;
+  final Color fg;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = (highlighted ? 14.0 : 13.0) * scale;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: (highlighted ? 10 : 8) * scale,
+        vertical: (highlighted ? 4 : 2) * scale,
+      ),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? AppTheme.highlight.withValues(alpha: 0.22)
+            : fg.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(10),
+        border: highlighted
+            ? Border.all(
+                color: AppTheme.highlight.withValues(alpha: 0.7),
+                width: 1.2,
+              )
+            : null,
+        boxShadow: highlighted
+            ? [
+                BoxShadow(
+                  color: AppTheme.highlight.withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (highlighted) ...[
+            Icon(
+              Icons.timer_outlined,
+              size: fontSize + 2,
+              color: AppTheme.highlight,
+            ),
+            SizedBox(width: 4 * scale),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: highlighted ? AppTheme.highlight : fg,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

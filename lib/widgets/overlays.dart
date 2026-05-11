@@ -392,16 +392,17 @@ class IqamaCountdownOverlay extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    'IQAMA',
+                  Text(
+                    'IQAMA DANS',
                     style: TextStyle(
-                      fontSize: 48,
-                      letterSpacing: 12,
-                      color: AppTheme.textSecondary,
+                      fontSize: 56,
+                      letterSpacing: 14,
+                      color: AppTheme.textPrimary.withValues(alpha: 0.92),
                       fontWeight: FontWeight.w300,
+                      shadows: AppTheme.textShadow,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     seconds.toString(),
                     style: TextStyle(
@@ -415,23 +416,31 @@ class IqamaCountdownOverlay extends StatelessWidget {
                           color: AppTheme.highlight.withValues(alpha: 0.6),
                           blurRadius: 40,
                         ),
+                        const Shadow(
+                          color: Colors.black87,
+                          blurRadius: 6,
+                          offset: Offset(0, 4),
+                        ),
                       ],
                     ),
                   ),
                   Text(
-                    'secondes',
+                    'SECONDES',
                     style: TextStyle(
-                      fontSize: 24,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.8),
-                      letterSpacing: 4,
+                      fontSize: 32,
+                      color: AppTheme.highlight.withValues(alpha: 0.85),
+                      letterSpacing: 12,
+                      fontWeight: FontWeight.w500,
+                      shadows: AppTheme.textShadow,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 36),
                   Text(
                     'Préparez-vous pour $french',
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 24,
                       color: AppTheme.textPrimary,
+                      letterSpacing: 1.5,
                     ),
                   ),
                 ],
