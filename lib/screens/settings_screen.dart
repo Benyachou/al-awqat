@@ -7,13 +7,13 @@ import 'package:hijri/hijri_calendar.dart';
 
 import '../core/calculation_preset.dart';
 import '../core/constants.dart';
-import '../core/display_mode.dart';
 import '../core/hijri_helper.dart';
 import '../core/prayer_engine.dart';
 import '../core/theme.dart';
 import '../providers/prayer_provider.dart';
 import '../services/geocoding_service.dart';
 import '../services/update_service.dart';
+import 'simulator_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -181,6 +181,26 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               const _SectionTitle('Heure (été / hiver)'),
               _DstStatusCard(now: prayer.now),
+              const SizedBox(height: 24),
+              const _SectionTitle('Simulateur'),
+              Card(
+                color: AppTheme.surface,
+                child: ListTile(
+                  leading: const Icon(Icons.science_outlined,
+                      color: AppTheme.accent),
+                  title: const Text('Ouvrir le simulateur'),
+                  subtitle: const Text(
+                    'Navigue dans le temps, teste chaque phase (adhan, iqama, adhkar) et explore le calendrier islamique.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const SimulatorScreen()),
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
               const _SectionTitle('Mises à jour'),
               const _UpdateSection(),
@@ -396,95 +416,8 @@ class _DisplaySection extends StatelessWidget {
                 )),
               ),
             ),
-            const Divider(height: 32, color: AppTheme.divider),
-            const Text(
-              'Aperçu des écrans contextuels',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.accent,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Force l\'affichage d\'un écran spécial pendant 30 s, pour '
-              'vérifier le rendu sans attendre l\'heure de la prière.',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _PreviewButton(
-                  label: 'Adhan',
-                  icon: Icons.mosque,
-                  onPressed: () {
-                    prayer.previewMode(DisplayMode.adhan);
-                    Navigator.pop(context);
-                  },
-                ),
-                _PreviewButton(
-                  label: 'Dou\'a après adhan',
-                  icon: Icons.menu_book,
-                  onPressed: () {
-                    prayer.previewMode(DisplayMode.postAdhan);
-                    Navigator.pop(context);
-                  },
-                ),
-                _PreviewButton(
-                  label: 'Iqama countdown',
-                  icon: Icons.timer,
-                  onPressed: () {
-                    prayer.previewMode(DisplayMode.iqamaCountdown);
-                    Navigator.pop(context);
-                  },
-                ),
-                _PreviewButton(
-                  label: 'Adhkar',
-                  icon: Icons.auto_stories,
-                  onPressed: () {
-                    prayer.previewMode(DisplayMode.postPrayer);
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton.icon(
-                icon: const Icon(Icons.close),
-                label: const Text('Annuler l\'aperçu en cours'),
-                onPressed: () => prayer.cancelPreview(),
-              ),
-            ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Petit bouton dédié pour lancer un aperçu d'écran contextuel.
-class _PreviewButton extends StatelessWidget {
-  const _PreviewButton({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-  });
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppTheme.textPrimary,
-        side: const BorderSide(color: AppTheme.accent),
       ),
     );
   }

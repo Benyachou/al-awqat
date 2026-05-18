@@ -18,7 +18,6 @@ import '../widgets/side_info.dart';
 import 'monthly_screen.dart';
 import 'qibla_screen.dart';
 import 'settings_screen.dart';
-import 'simulator_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -296,8 +295,6 @@ class _MainView extends StatelessWidget {
                 isAdhanPlaying: prayer.audio.isPlaying,
                 onStopAdhan: prayer.stopAdhan,
                 scale: cHeader,
-                isSimulating: prayer.isSimulating,
-                onStopSimulation: prayer.stopSimulation,
               ),
               const SizedBox(height: 6),
               // Bannière islamique + indicateur simulation (slim, n'occupe pas de place si vide)
@@ -473,8 +470,6 @@ class _Header extends StatelessWidget {
     required this.isAdhanPlaying,
     required this.onStopAdhan,
     required this.scale,
-    required this.isSimulating,
-    required this.onStopSimulation,
   });
 
   final String mosqueeName;
@@ -483,8 +478,6 @@ class _Header extends StatelessWidget {
   final ValueListenable<bool> isAdhanPlaying;
   final Future<void> Function() onStopAdhan;
   final double scale;
-  final bool isSimulating;
-  final VoidCallback onStopSimulation;
 
   @override
   Widget build(BuildContext context) {
@@ -556,16 +549,6 @@ class _Header extends StatelessWidget {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const MonthlyScreen()),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _GlassIconButton(
-              icon: Icons.science_outlined,
-              tooltip: 'Simulateur de temps',
-              iconColor: isSimulating ? Colors.redAccent : null,
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SimulatorScreen()),
               ),
             ),
             const Spacer(),
