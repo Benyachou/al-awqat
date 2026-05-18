@@ -1,12 +1,16 @@
+import 'dart:math' show min;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/display_mode.dart';
+import '../core/islamic_events.dart';
 import '../core/prayer_engine.dart';
 import '../core/theme.dart';
 import '../providers/prayer_provider.dart';
+import '../widgets/islamic_event_banner.dart';
 import '../widgets/mawaqit_clock.dart';
 import '../widgets/overlays.dart';
 import '../widgets/prayer_card.dart';
@@ -14,6 +18,7 @@ import '../widgets/side_info.dart';
 import 'monthly_screen.dart';
 import 'qibla_screen.dart';
 import 'settings_screen.dart';
+import 'simulator_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -203,33 +208,131 @@ class _MainView extends StatelessWidget {
     final next = prayer.nextPrayer;
     final current = prayer.currentPrayer;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-        child: Column(
-          children: [
-            _Header(
-              mosqueeName: settings.mosqueeName,
-              cityName: settings.cityName,
-              hasUpdate: prayer.availableUpdate?.hasUpdate ?? false,
-              isAdhanPlaying: prayer.audio.isPlaying,
-              onStopAdhan: prayer.stopAdhan,
-              scale: settings.headerScale * settings.fontScale,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              flex: 5,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                crossAxisAlignment: CrossAxisAlignment.center,
+    return LayoutBuilder(builder: (context, constraints) {
+      // Facteur d'ajustement automatique : garantit que les 5 cartes et
+      // l'horloge tiennent dans la fenêtre, quelle que soit sa taille.
+      // On calcule séparément la contrainte largeur (5 cartes côte-à-côte)
+      // et la contrainte hauteur (cartes + horloge + header), puis on prend
+      // le minimum. Les paramètres de l'utilisateur (cardScale, clockScale…)
+      // sont respectés — on ne réduit que si nécessaire.
+      final avW = (constraints.maxWidth - 40.0).clamp(1.0, double.infinity);
+      final avH = (constraints.maxHeight - 28.0).clamp(1.0, double.infinity);
+      final csCard = settings.cardScale * settings.fontScale;
+      final csClock = settings.clockScale * settings.fontScale;
+
+      // Largeur : 5 cartes × 170px + 24px de marge minimale entre elles.
+      final wFit = (avW - 24.0) / (170.0 * csCard * 5);
+      // Hauteur : header (~60px) + espaces (~20px) + horloge (~242px à
+      // scale 1) + cartes (210px à scale 1) doivent tenir dans avH.
+      final hFit =
+          (avH - 80.0) / (242.0 * csClock + 210.0 * csCard);
+      final fit = min(1.0, min(wFit, hFit)).clamp(0.4, 1.0);
+
+      final cCard = csCard * fit;
+      final cClock = csClock * fit;
+      final cSide = settings.sideScale * settings.fontScale * fit;
+      final cHeader = settings.headerScale * settings.fontScale * fit;
+
+      // === Logique Jumu'ah (vendredi) ===
+      // Le vendredi avec Jumu'ah activé, la pilule Jumu'ah (à droite) prend
+      // la place de Dhuhr dans le compteur et la mise en avant visuelle.
+      // La carte Dhuhr reste affichée mais en état neutre (jamais current/next).
+      final isFridayJumuah = today.isJumuah && settings.jumuahEnabled;
+      final jumuahTime = isFridayJumuah
+          ? DateTime(prayer.now.year, prayer.now.month, prayer.now.day,
+              settings.jumuahHour, settings.jumuahMinute)
+          : null;
+      final asrTime = today.all[PrayerSlot.asr];
+
+      bool jumuahSideActive = false;
+      String? jumuahClockLabel;
+      Duration displayUntilNext = prayer.untilNext;
+      PrayerSlot? displayNextSlot = next?.slot;
+
+      if (isFridayJumuah && jumuahTime != null) {
+        final now = prayer.now;
+        if (now.isBefore(jumuahTime)) {
+          // Jumu'ah est à venir → c'est elle la "prochaine prière" à afficher
+          jumuahSideActive = true;
+          jumuahClockLabel = 'Jumu\'ah';
+          displayUntilNext = jumuahTime.difference(now);
+          displayNextSlot = next?.slot ?? PrayerSlot.dhuhr;
+        } else if (asrTime != null && now.isBefore(asrTime)) {
+          // Jumu'ah en cours (entre heure Jumu'ah et Asr)
+          jumuahSideActive = true;
+        }
+      }
+
+      // État d'une carte : sur Dhuhr le vendredi, jamais current ni next.
+      PrayerCardState cardState(PrayerSlot slot) {
+        var state = _stateFor(
+            slot, current, next?.slot, today.all[slot]!, prayer.now);
+        if (isFridayJumuah && slot == PrayerSlot.dhuhr) {
+          if (state == PrayerCardState.current ||
+              state == PrayerCardState.next) {
+            state = today.all[slot]!.isBefore(prayer.now)
+                ? PrayerCardState.passed
+                : PrayerCardState.upcoming;
+          }
+        }
+        return state;
+      }
+
+      // Événements islamiques pour la date effective
+      final islamicEvent = IslamicCalendar.topEventFor(
+        prayer.now,
+        hijriOffset: settings.hijriOffset,
+      );
+
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            children: [
+              _Header(
+                mosqueeName: settings.mosqueeName,
+                cityName: settings.cityName,
+                hasUpdate: prayer.availableUpdate?.hasUpdate ?? false,
+                isAdhanPlaying: prayer.audio.isPlaying,
+                onStopAdhan: prayer.stopAdhan,
+                scale: cHeader,
+                isSimulating: prayer.isSimulating,
+                onStopSimulation: prayer.stopSimulation,
+              ),
+              const SizedBox(height: 6),
+              // Bannière islamique + indicateur simulation (slim, n'occupe pas de place si vide)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SideInfo(
-                    label: 'Shurûq',
-                    arabicLabel: 'الشروق',
-                    time: today.sunrise,
-                    scale: settings.sideScale * settings.fontScale,
-                  ),
-                  Container(
+                  if (prayer.isSimulating) ...[
+                    _SimulationBadge(
+                        now: prayer.now,
+                        onStop: prayer.stopSimulation),
+                    const SizedBox(width: 10),
+                  ],
+                  if (islamicEvent != null)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: IslamicEventBanner(
+                          event: islamicEvent, scale: fit),
+                    ),
+                ],
+              ),
+              if (islamicEvent != null || prayer.isSimulating)
+                const SizedBox(height: 6),
+              Expanded(
+                flex: 5,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SideInfo(
+                      label: 'Shurûq',
+                      arabicLabel: 'الشروق',
+                      time: today.sunrise,
+                      scale: cSide,
+                    ),
+                    Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
@@ -253,10 +356,11 @@ class _MainView extends StatelessWidget {
                         children: [
                           MawaqitClock(
                             now: prayer.now,
-                            nextSlot: next?.slot,
-                            untilNext: prayer.untilNext,
+                            nextSlot: displayNextSlot,
+                            untilNext: displayUntilNext,
                             hijriOffset: settings.hijriOffset,
-                            scale: settings.clockScale * settings.fontScale,
+                            scale: cClock,
+                            nextSlotLabel: jumuahClockLabel,
                           ),
                           const SizedBox(height: 10),
                           _DigitalClockBar(now: prayer.now),
@@ -275,50 +379,49 @@ class _MainView extends StatelessWidget {
                               settings.jumuahMinute,
                             )
                           : null,
-                      scale: settings.sideScale * settings.fontScale,
+                      scale: cSide,
+                      isActive: jumuahSideActive,
                     ),
                   ],
                 ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                for (var i = 0; i < _orderedSlots.length; i++)
-                  SizedBox(
-                    width: 170 * settings.cardScale * settings.fontScale,
-                    height: 210 * settings.cardScale * settings.fontScale,
-                    child: PrayerCard(
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < _orderedSlots.length; i++)
+                    SizedBox(
+                      width: 170 * cCard,
+                      height: 210 * cCard,
+                      child: PrayerCard(
                         slot: _orderedSlots[i],
                         time: today.all[_orderedSlots[i]]!,
                         iqamaMinutes: settings.iqamaMinutes,
                         showIqama: _orderedSlots[i] != PrayerSlot.sunrise,
-                        scale: settings.cardScale * settings.fontScale,
+                        scale: cCard,
                         now: prayer.now,
-                        state: _stateFor(
-                          _orderedSlots[i],
-                          current,
-                          next?.slot,
-                          today.all[_orderedSlots[i]]!,
-                          prayer.now,
-                        ),
-                        isJumuah: today.isJumuah,
-                        fillProgress: _fillFor(
-                          _orderedSlots[i],
-                          current,
-                          prayer.now,
-                          today,
-                          tomorrow,
-                        ),
+                        state: cardState(_orderedSlots[i]),
+                        isJumuah: false,
+                        fillProgress: isFridayJumuah &&
+                                _orderedSlots[i] == PrayerSlot.dhuhr
+                            ? null
+                            : _fillFor(
+                                _orderedSlots[i],
+                                current,
+                                prayer.now,
+                                today,
+                                tomorrow,
+                              ),
                       ),
                     ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -370,6 +473,8 @@ class _Header extends StatelessWidget {
     required this.isAdhanPlaying,
     required this.onStopAdhan,
     required this.scale,
+    required this.isSimulating,
+    required this.onStopSimulation,
   });
 
   final String mosqueeName;
@@ -378,6 +483,8 @@ class _Header extends StatelessWidget {
   final ValueListenable<bool> isAdhanPlaying;
   final Future<void> Function() onStopAdhan;
   final double scale;
+  final bool isSimulating;
+  final VoidCallback onStopSimulation;
 
   @override
   Widget build(BuildContext context) {
@@ -449,6 +556,16 @@ class _Header extends StatelessWidget {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const MonthlyScreen()),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _GlassIconButton(
+              icon: Icons.science_outlined,
+              tooltip: 'Simulateur de temps',
+              iconColor: isSimulating ? Colors.redAccent : null,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SimulatorScreen()),
               ),
             ),
             const Spacer(),
@@ -528,6 +645,50 @@ class _GlassIconButton extends StatefulWidget {
 
   @override
   State<_GlassIconButton> createState() => _GlassIconButtonState();
+}
+
+/// Pilule rouge "SIMULATION" affichée dans le HomeScreen quand le mode
+/// simulation est actif. Indique l'heure simulée et offre un bouton stop.
+class _SimulationBadge extends StatelessWidget {
+  const _SimulationBadge({required this.now, required this.onStop});
+  final DateTime now;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    final timeStr =
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final dateStr = DateFormat('d MMM', 'fr_FR').format(now);
+    return GestureDetector(
+      onTap: onStop,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withValues(alpha: 0.20),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.75)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.science_outlined,
+                size: 12, color: Colors.redAccent),
+            const SizedBox(width: 5),
+            Text(
+              'SIM  $timeStr  $dateStr',
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1),
+            ),
+            const SizedBox(width: 5),
+            const Icon(Icons.close, size: 11, color: Colors.redAccent),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _GlassIconButtonState extends State<_GlassIconButton> {

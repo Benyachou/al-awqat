@@ -34,21 +34,19 @@ class AudioService {
     await _player.setVolume(_volume);
   }
 
-  /// Joue l'adhan depuis le début. Le `stop()` initial évite la superposition
-  /// si on relance pendant qu'un précédent adhan tourne encore. Le `.first`
-  /// sur onPlayerComplete repasse isPlaying à false en fin de lecture.
-  Future<void> playAdhan() async {
+  /// Joue l'adhan depuis le début.
+  /// [assetPath] : chemin relatif dans assets/ (ex: 'audio/Adhan_al_fajr.mp3').
+  /// Par défaut utilise 'audio/Adhan.mp3'.
+  Future<void> playAdhan({String assetPath = 'audio/Adhan.mp3'}) async {
     try {
       await _player.stop();
       await _player.setVolume(_volume);
-      await _player.play(AssetSource('audio/adhan.mp3'));
+      await _player.play(AssetSource(assetPath));
       isPlaying.value = true;
       _player.onPlayerComplete.first.then((_) {
         isPlaying.value = false;
       });
     } catch (_) {
-      // Fail silencieux : asset manquant, codec invalide, plateforme web
-      // sans support audio… on ne veut pas crasher l'app pour ça.
       isPlaying.value = false;
     }
   }

@@ -108,41 +108,21 @@ class DisplayModeMachine {
     DateTime t,
     int iqamaMinutes,
   ) {
-    final adhanEnd = t.add(const Duration(seconds: adhanDurationSec));
-    final postAdhanEnd =
-        adhanEnd.add(const Duration(seconds: postAdhanDurationSec));
     final iqamaTime = t.add(Duration(minutes: iqamaMinutes));
     final iqamaCountdownStart =
         iqamaTime.subtract(const Duration(seconds: iqamaCountdownLeadSec));
+    final adhanEnd = t.add(const Duration(seconds: adhanDurationSec));
+    final postAdhanEnd =
+        adhanEnd.add(const Duration(seconds: postAdhanDurationSec));
     final prayerEnd =
         iqamaTime.add(const Duration(seconds: prayerDurationSec));
     final adhkarEnd =
         prayerEnd.add(const Duration(seconds: adhkarDurationSec));
 
-    // Phase 1 : adhan en cours (T → T+2min).
-    if (!now.isBefore(t) && now.isBefore(adhanEnd)) {
-      return DisplayContext(
-        mode: DisplayMode.adhan,
-        slot: slot,
-        prayerTime: t,
-        countdown: adhanEnd.difference(now),
-      );
-    }
-
-    // Phase 2 : dou'a après l'adhan (T+2min → T+3min).
-    if (!now.isBefore(adhanEnd) && now.isBefore(postAdhanEnd)) {
-      return DisplayContext(
-        mode: DisplayMode.postAdhan,
-        slot: slot,
-        prayerTime: t,
-        // countdown = temps restant jusqu'à l'iqama, pour information.
-        countdown: iqamaTime.difference(now),
-      );
-    }
-
-    // Phase 3 : countdown iqama (30 dernières secondes avant l'iqama).
-    // Important : on ne déclenche QUE si on est dans cette fenêtre stricte,
-    // pour ne pas bloquer le HUD normal pendant les 7+ min entre dou'a et iqama.
+    // Phase 3 (prioritaire) : 30 dernières secondes avant l'iqama.
+    // Ce check passe EN PREMIER pour garantir que le countdown s'affiche
+    // toujours, quelle que soit la valeur de iqamaMinutes — même si elle
+    // est si courte qu'elle chevauche l'adhan ou le dou'a.
     if (!now.isBefore(iqamaCountdownStart) && now.isBefore(iqamaTime)) {
       return DisplayContext(
         mode: DisplayMode.iqamaCountdown,
@@ -152,10 +132,29 @@ class DisplayModeMachine {
       );
     }
 
-    // Phase 4 : pendant la prière, on reste en NORMAL (pas d'overlay).
-    // Donc rien à retourner ici — on tombe sur le check suivant.
+    // Phase 1 : adhan en cours (T → T+3min).
+    if (!now.isBefore(t) && now.isBefore(adhanEnd)) {
+      return DisplayContext(
+        mode: DisplayMode.adhan,
+        slot: slot,
+        prayerTime: t,
+        countdown: adhanEnd.difference(now),
+      );
+    }
 
-    // Phase 5 : adhkar après la prière (iqama+10min → iqama+15min).
+    // Phase 2 : dou'a après l'adhan (T+3min → T+4min).
+    if (!now.isBefore(adhanEnd) && now.isBefore(postAdhanEnd)) {
+      return DisplayContext(
+        mode: DisplayMode.postAdhan,
+        slot: slot,
+        prayerTime: t,
+        countdown: iqamaTime.difference(now),
+      );
+    }
+
+    // Phase 4 : pendant la prière, on reste en NORMAL (pas d'overlay).
+
+    // Phase 5 : adhkar après la prière.
     if (!now.isBefore(prayerEnd) && now.isBefore(adhkarEnd)) {
       return DisplayContext(
         mode: DisplayMode.postPrayer,

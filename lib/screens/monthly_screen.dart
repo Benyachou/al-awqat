@@ -3,6 +3,7 @@ import 'package:hijri/hijri_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/islamic_events.dart';
 import '../core/prayer_engine.dart';
 import '../core/theme.dart';
 import '../providers/prayer_provider.dart';
@@ -79,11 +80,16 @@ class _MonthlyScreenState extends State<MonthlyScreen> {
                   final schedule = prayer.scheduleForDay(day);
                   final isToday = _isSameDay(day, today);
                   final isFriday = day.weekday == DateTime.friday;
+                  final events = IslamicCalendar.eventsFor(
+                    day,
+                    hijriOffset: prayer.settings.hijriOffset,
+                  );
                   return _Row(
                     day: day,
                     schedule: schedule,
                     isToday: isToday,
                     isFriday: isFriday,
+                    islamicEvents: events,
                   );
                 },
               ),
@@ -132,26 +138,68 @@ class _Row extends StatelessWidget {
     required this.schedule,
     required this.isToday,
     required this.isFriday,
+    required this.islamicEvents,
   });
 
   final DateTime day;
   final PrayerSchedule schedule;
   final bool isToday;
   final bool isFriday;
+  final List<IslamicEvent> islamicEvents;
+
+  static Color? _eventBg(IslamicEventType t) => switch (t) {
+        IslamicEventType.eid =>
+          const Color(0xFFD4A017).withValues(alpha: 0.16),
+        IslamicEventType.arafat =>
+          const Color(0xFFFFA000).withValues(alpha: 0.14),
+        IslamicEventType.laylatulQadr =>
+          const Color(0xFF7B1FA2).withValues(alpha: 0.14),
+        IslamicEventType.ramadan =>
+          const Color(0xFF1B6B3A).withValues(alpha: 0.18),
+        IslamicEventType.ashura ||
+        IslamicEventType.tasuaa =>
+          const Color(0xFF1565C0).withValues(alpha: 0.14),
+        IslamicEventType.dhulHijja =>
+          const Color(0xFF2D6B5A).withValues(alpha: 0.14),
+        _ => null,
+      };
+
+  static Color _eventDotColor(IslamicEventType t) => switch (t) {
+        IslamicEventType.eid => const Color(0xFFFFD700),
+        IslamicEventType.arafat => const Color(0xFFFFA000),
+        IslamicEventType.laylatulQadr => const Color(0xFFCE93D8),
+        IslamicEventType.ramadan => const Color(0xFF66BB6A),
+        IslamicEventType.ashura ||
+        IslamicEventType.tasuaa =>
+          const Color(0xFF64B5F6),
+        IslamicEventType.dhulHijja => const Color(0xFF4DB6AC),
+        IslamicEventType.ayyamBeedh => const Color(0xFF90CAF9),
+        IslamicEventType.mondayFast ||
+        IslamicEventType.thursdayFast =>
+          const Color(0xFFB0BEC5),
+      };
 
   @override
   Widget build(BuildContext context) {
     final dayFmt = DateFormat('EEE d', 'fr_FR');
     final hijri = HijriCalendar.fromDate(day);
-    final bg = isToday
+    final topEvent = islamicEvents.isNotEmpty ? islamicEvents.first : null;
+
+    // Fond prioritaire : événement islamique > aujourd'hui > vendredi
+    Color? bg;
+    if (topEvent != null) {
+      bg = _eventBg(topEvent.type);
+    }
+    bg ??= isToday
         ? AppTheme.highlight.withValues(alpha: 0.15)
         : isFriday
             ? AppTheme.accent.withValues(alpha: 0.08)
             : null;
+
     final color = isToday ? AppTheme.highlight : AppTheme.textPrimary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
         border: const Border(
@@ -165,14 +213,26 @@ class _Row extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  dayFmt.format(day),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 14,
-                    fontWeight:
-                        isToday ? FontWeight.bold : FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      dayFmt.format(day),
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight:
+                            isToday ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                    if (isFriday) ...[
+                      const SizedBox(width: 4),
+                      const Text('J',
+                          style: TextStyle(
+                              fontSize: 9,
+                              color: AppTheme.highlight,
+                              fontWeight: FontWeight.w700)),
+                    ],
+                  ],
                 ),
                 Text(
                   '${hijri.hDay}/${hijri.hMonth}',
@@ -181,12 +241,46 @@ class _Row extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
+                // Dots pour les événements islamiques
+                if (islamicEvents.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      children: [
+                        for (final e in islamicEvents.take(3))
+                          Container(
+                            width: 5,
+                            height: 5,
+                            margin: const EdgeInsets.only(right: 3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _eventDotColor(e.type),
+                            ),
+                          ),
+                        if (islamicEvents.isNotEmpty)
+                          Flexible(
+                            child: Text(
+                              islamicEvents.first.nameAr,
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: _eventDotColor(
+                                    islamicEvents.first.type),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
           _Cell(time: schedule.fajr, color: color),
           _Cell(time: schedule.sunrise, color: color),
-          _Cell(time: schedule.dhuhr, color: color, jumuah: schedule.isJumuah),
+          _Cell(
+              time: schedule.dhuhr,
+              color: color,
+              jumuah: schedule.isJumuah),
           _Cell(time: schedule.asr, color: color),
           _Cell(time: schedule.maghrib, color: color),
           _Cell(time: schedule.isha, color: color),

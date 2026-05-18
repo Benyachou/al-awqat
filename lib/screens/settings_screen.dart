@@ -61,14 +61,27 @@ class SettingsScreen extends StatelessWidget {
               const _SectionTitle('Madhab (calcul du Asr)'),
               SegmentedButton<Madhab>(
                 segments: const [
-                  ButtonSegment(value: Madhab.shafi, label: Text('Shafi')),
-                  ButtonSegment(value: Madhab.hanafi, label: Text('Hanafi')),
+                  ButtonSegment(
+                    value: Madhab.shafi,
+                    label: Text('Shafi / Maliki / Hanbali'),
+                  ),
+                  ButtonSegment(
+                    value: Madhab.hanafi,
+                    label: Text('Hanafi'),
+                  ),
                 ],
                 selected: {settings.madhab},
                 onSelectionChanged: (selection) {
                   prayer.updateSettings(
                       settings.copyWith(madhab: selection.first));
                 },
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text(
+                  'Maliki et Hanbali utilisent le même calcul de Asr que Shafi (ombre = 1× la hauteur de l\'objet).',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
               ),
               const SizedBox(height: 24),
               const _SectionTitle('Ajustements fins (par prière)'),

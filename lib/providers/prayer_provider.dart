@@ -7,7 +7,7 @@
 //
 // Responsabilités :
 //   - Lance un timer toutes les secondes (le "tick") qui :
-//       1. met à jour _now
+//       1. met à jour _wallNow
 //       2. recalcule les horaires si on a changé de jour à minuit
 //       3. déclenche l'adhan audio si on vient de passer une heure de prière
 //       4. notifie les widgets pour rebuild
@@ -17,6 +17,9 @@
 //   - Délègue les paramètres au SettingsService et la lecture audio à
 //     AudioService.
 //   - Auto-check des updates GitHub au lancement (1×/24h max).
+//   - Mode simulation : `simulateTo(dt)` injecte un instant fictif dans
+//     toute la machine d'état — le calendrier et les countdowns reflètent
+//     l'heure simulée, pas l'heure réelle.
 //
 // IMPORTANT : ce provider notifie chaque SECONDE. Tous les widgets qui le
 // consomment se rebuildent chaque seconde. Il ne faut donc pas y mettre
@@ -36,13 +39,6 @@ import '../services/settings_service.dart';
 import '../services/update_service.dart';
 
 class PrayerProvider extends ChangeNotifier {
-  /// Au démarrage :
-  ///   - instancie tous les services internes
-  ///   - applique le volume sauvegardé à l'AudioService
-  ///   - restaure le dernier adhan joué (pour ne pas le rejouer au reboot)
-  ///   - calcule les horaires d'aujourd'hui et de demain
-  ///   - lance le timer 1Hz
-  ///   - lance un check de update différé (5s) si activé
   PrayerProvider(this._settingsService) {
     _engine = PrayerEngine();
     _audio = AudioService();
@@ -54,120 +50,99 @@ class PrayerProvider extends ChangeNotifier {
     _maybeAutoCheckUpdates();
   }
 
-  // --- Dépendances injectées / créées ---
   final SettingsService _settingsService;
   late final PrayerEngine _engine;
   late final AudioService _audio;
   late final UpdateService _updateService;
   late Timer _ticker;
 
-  /// Exposé pour que l'UI puisse écouter audio.isPlaying (afficher le bouton
-  /// stop) et déclencher manuellement audio.playAdhan() depuis le bouton test.
   AudioService get audio => _audio;
   UpdateService get updateService => _updateService;
 
-  /// Dernier résultat du check d'update. Null tant qu'on n'a pas vérifié.
-  /// `hasUpdate == true` → badge orange sur l'icône ⚙️ du header.
   UpdateInfo? _availableUpdate;
   UpdateInfo? get availableUpdate => _availableUpdate;
 
-  // --- État courant (mutable via _tick) ---
+  // --- Horloge murale (mise à jour chaque seconde par _tick) ---
+  DateTime _wallNow = DateTime.now();
+
   PrayerSchedule? _today;
   PrayerSchedule? _tomorrow;
-  DateTime _now = DateTime.now();
-  /// Jour pour lequel _today/_tomorrow ont été calculés. Sert à détecter
-  /// le passage de minuit pour relancer un calcul.
+
+  /// Jour pour lequel _today/_tomorrow ont été calculés.
   DateTime _scheduleDate = DateTime.now();
 
-  /// Identité du dernier adhan joué (slot + timestamp). Persisté dans
-  /// SharedPreferences pour qu'un reboot quelques minutes après une prière
-  /// ne rejoue PAS l'adhan une deuxième fois.
   PrayerSlot? _lastTriggered;
   DateTime? _lastTriggeredAt;
 
   AppSettings get settings => _settingsService.settings;
   PrayerSchedule? get today => _today;
-  DateTime get now => _now;
-
-  /// Prochaine prière obligatoire après [_now], en sautant sunrise.
-  /// Si l'Isha de today est passée, renvoie le Fajr de tomorrow.
-  ({PrayerSlot slot, DateTime time})? get nextPrayer {
-    if (_today == null || _tomorrow == null) return null;
-    return _engine.nextPrayer(_today!, _tomorrow!, _now);
-  }
-
-  /// Prière "en cours" = la plus récente passée. Voir PrayerEngine.
-  PrayerSlot? get currentPrayer {
-    if (_today == null) return null;
-    return _engine.currentPrayer(_today!, _now);
-  }
-
-  /// Durée entre maintenant et la prochaine prière. Utilisé par MawaqitClock
-  /// pour afficher "Isha dans 1 h 20 min".
-  Duration get untilNext {
-    final next = nextPrayer;
-    if (next == null) return Duration.zero;
-    return next.time.difference(_now);
-  }
-
   PrayerSchedule? get tomorrow => _tomorrow;
 
-  /// Détermine quel écran afficher selon le moment de la journée :
-  /// normal, adhan en cours, post-adhan, iqama countdown, prière, adhkar.
-  /// Voir DisplayModeMachine pour les règles exactes.
-  ///
-  /// Si un preview est actif, on remplace le « now » réel par un « now »
-  /// fictif positionné dans la phase voulue — la state machine fait tout
-  /// le reste naturellement, les countdowns décrémentent en temps réel.
-  DisplayContext get displayContext {
-    if (_today == null) return DisplayContext.normal;
-    return DisplayModeMachine.compute(
-      now: _effectiveNow,
-      today: _today!,
-      iqamaMinutes: settings.iqamaMinutes,
-    );
+  // =========================================================================
+  // Mode simulation
+  // =========================================================================
+
+  /// Point de départ de la simulation (heure fictive choisie par l'user).
+  DateTime? _simBase;
+
+  /// Heure murale au moment où la simulation a été démarrée.
+  /// Permet de faire avancer la simulation en temps réel.
+  DateTime? _simStartWall;
+
+  bool get isSimulating => _simBase != null;
+
+  /// Lance la simulation depuis [fakeNow].
+  /// Tous les getters (now, displayContext, nextPrayer…) reflèteront cet instant
+  /// et avanceront à vitesse réelle jusqu'à l'appel de [stopSimulation].
+  /// Si la phase simulée est l'adhan, l'audio est déclenché immédiatement.
+  void simulateTo(DateTime fakeNow) {
+    _previewTimer?.cancel();
+    _previewFakeNow = null;
+    _previewRealStartedAt = null;
+    _simBase = fakeNow;
+    _simStartWall = _wallNow;
+    _recompute();
+    // Joue l'adhan si on simule la phase adhan.
+    if (displayContext.mode == DisplayMode.adhan && settings.playAdhan) {
+      _audio.playAdhan(assetPath: _adhanAsset(currentPrayer));
+    } else {
+      _audio.stop();
+    }
+    notifyListeners();
   }
 
-  /// Heure « effective » utilisée par la state machine : c'est le `_now`
-  /// réel sauf si un preview est actif, auquel cas on rejoue la timeline
-  /// à partir d'un instant fictif (avancée 1 s pour 1 s de temps réel).
-  DateTime get _effectiveNow {
-    if (_previewFakeNow == null || _previewRealStartedAt == null) return _now;
-    final realElapsed = _now.difference(_previewRealStartedAt!);
-    return _previewFakeNow!.add(realElapsed);
+  /// Arrête la simulation et revient au temps réel.
+  void stopSimulation() {
+    _simBase = null;
+    _simStartWall = null;
+    _audio.stop();
+    _recompute();
+    notifyListeners();
   }
 
-  // --- Mode preview (simulation d'un faux "now" pour valider les écrans) ---
+  // =========================================================================
+  // Mode preview (simulation courte depuis les boutons "Test" des settings)
+  // =========================================================================
+
   DateTime? _previewFakeNow;
   DateTime? _previewRealStartedAt;
   Timer? _previewTimer;
 
   bool get isPreviewing => _previewFakeNow != null;
 
-  /// Lance un aperçu réaliste du mode [mode] : on injecte un faux instant
-  /// placé dans la fenêtre temporelle correspondante, puis la state machine
-  /// déroule la phase en temps réel (countdowns qui descendent, dou'as qui
-  /// défilent, etc.). La durée est calibrée pour montrer la séquence complète.
   void previewMode(DisplayMode mode) {
     _previewTimer?.cancel();
     if (_today == null) return;
 
     final fakeSlot = currentPrayer ?? PrayerSlot.dhuhr;
-    final prayerTime = _today!.all[fakeSlot] ?? _now;
+    final prayerTime = _today!.all[fakeSlot] ?? _wallNow;
     final iqamaMin = settings.iqamaMinutes;
 
-    // Place un instant fictif au début de la phase choisie, sans tomber pile
-    // sur la frontière (sinon on transite immédiatement vers la phase suivante).
-    // Et choisit la durée du preview = ce qu'il reste de la phase + un peu.
     final (DateTime fakeNow, Duration previewLen) = switch (mode) {
-      // Adhan : on entre 5 s après le début → 30 s d'aperçu suffisent
-      // pour voir l'animation et le countdown qui descend.
       DisplayMode.adhan => (
           prayerTime.add(const Duration(seconds: 5)),
           const Duration(seconds: 30),
         ),
-      // Post-adhan : juste après la fin de l'adhan. La fenêtre dure 60 s,
-      // assez pour les 3 dou'as à 20 s. Preview = toute la fenêtre + 2 s.
       DisplayMode.postAdhan => (
           prayerTime.add(const Duration(
             seconds: DisplayModeMachine.adhanDurationSec + 1,
@@ -176,7 +151,6 @@ class PrayerProvider extends ChangeNotifier {
             seconds: DisplayModeMachine.postAdhanDurationSec + 2,
           ),
         ),
-      // Iqama countdown : on entre à 29 s avant l'iqama, on reste jusqu'à 0.
       DisplayMode.iqamaCountdown => (
           prayerTime
               .add(Duration(minutes: iqamaMin))
@@ -185,8 +159,6 @@ class PrayerProvider extends ChangeNotifier {
             seconds: DisplayModeMachine.iqamaCountdownLeadSec + 2,
           ),
         ),
-      // Post-prière : juste après les 10 min de prière, début des adhkar.
-      // 60 s d'aperçu pour voir 3-4 slides défiler.
       DisplayMode.postPrayer => (
           prayerTime.add(Duration(
             minutes: iqamaMin + 10,
@@ -194,20 +166,26 @@ class PrayerProvider extends ChangeNotifier {
           )),
           const Duration(seconds: 60),
         ),
-      DisplayMode.normal => (_now, const Duration(seconds: 1)),
+      DisplayMode.normal => (_wallNow, const Duration(seconds: 1)),
     };
 
     _previewFakeNow = fakeNow;
-    _previewRealStartedAt = _now;
+    _previewRealStartedAt = _wallNow;
+    // Joue l'adhan si le preview démarre sur la phase adhan.
+    if (mode == DisplayMode.adhan && settings.playAdhan) {
+      _audio.playAdhan(assetPath: _adhanAsset(fakeSlot));
+    } else {
+      _audio.stop();
+    }
     notifyListeners();
     _previewTimer = Timer(previewLen, () {
       _previewFakeNow = null;
       _previewRealStartedAt = null;
+      _audio.stop();
       notifyListeners();
     });
   }
 
-  /// Coupe immédiatement un éventuel preview en cours.
   void cancelPreview() {
     _previewTimer?.cancel();
     _previewFakeNow = null;
@@ -215,9 +193,55 @@ class PrayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Point d'entrée pour tout changement de paramètre. Sauvegarde + applique
-  /// + recalcule + notifie. Le check `volumeChanged` évite un setVolume()
-  /// inutile à chaque rebuild.
+  // =========================================================================
+  // Getters exposés à l'UI
+  // =========================================================================
+
+  /// Heure effective exposée à tous les widgets.
+  ///
+  /// Priorité :
+  ///   1. Simulation active → heure fictive avançant en temps réel depuis [_simBase].
+  ///   2. Preview actif → heure fictive pour l'aperçu d'un mode d'affichage.
+  ///   3. Sinon → heure murale réelle.
+  DateTime get now {
+    if (_simBase != null && _simStartWall != null) {
+      return _simBase!.add(_wallNow.difference(_simStartWall!));
+    }
+    if (_previewFakeNow != null && _previewRealStartedAt != null) {
+      return _previewFakeNow!.add(_wallNow.difference(_previewRealStartedAt!));
+    }
+    return _wallNow;
+  }
+
+  ({PrayerSlot slot, DateTime time})? get nextPrayer {
+    if (_today == null || _tomorrow == null) return null;
+    return _engine.nextPrayer(_today!, _tomorrow!, now);
+  }
+
+  PrayerSlot? get currentPrayer {
+    if (_today == null) return null;
+    return _engine.currentPrayer(_today!, now);
+  }
+
+  Duration get untilNext {
+    final next = nextPrayer;
+    if (next == null) return Duration.zero;
+    return next.time.difference(now);
+  }
+
+  DisplayContext get displayContext {
+    if (_today == null) return DisplayContext.normal;
+    return DisplayModeMachine.compute(
+      now: now,
+      today: _today!,
+      iqamaMinutes: settings.iqamaMinutes,
+    );
+  }
+
+  // =========================================================================
+  // Actions
+  // =========================================================================
+
   Future<void> updateSettings(AppSettings newSettings) async {
     final volumeChanged = newSettings.adhanVolume != settings.adhanVolume;
     await _settingsService.save(newSettings);
@@ -226,11 +250,8 @@ class PrayerProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Coupe l'adhan en cours (bouton stop dans le header).
   Future<void> stopAdhan() => _audio.stop();
 
-  /// Force un check d'update (bouton "Vérifier maintenant" dans Paramètres).
-  /// Met à jour [availableUpdate] et notifie.
   Future<UpdateInfo?> checkForUpdates() async {
     final repo = settings.updateRepoUrl;
     if (repo == null || repo.isEmpty) return null;
@@ -241,22 +262,26 @@ class PrayerProvider extends ChangeNotifier {
     return info;
   }
 
-  /// Auto-check au démarrage : ne fait rien si pas de repo configuré, ou
-  /// si déjà vérifié il y a moins de 24h. Le délai de 5s laisse l'app
-  /// terminer son premier frame avant de partir en requête réseau.
   Future<void> _maybeAutoCheckUpdates() async {
     if (!settings.autoCheckUpdates) return;
     final repo = settings.updateRepoUrl;
     if (repo == null || repo.isEmpty) return;
     final last = _settingsService.getLastUpdateCheck();
-    final now = DateTime.now();
-    if (last != null && now.difference(last).inHours < 24) return;
+    final wallNow = DateTime.now();
+    if (last != null && wallNow.difference(last).inHours < 24) return;
     await Future.delayed(const Duration(seconds: 5));
     await checkForUpdates();
   }
 
-  /// Au démarrage : lit le dernier adhan joué depuis le storage pour
-  /// alimenter le filtre anti-rejeu (voir _maybeTriggerAdhan).
+  /// Calcule les horaires pour un jour arbitraire (utilisé par l'écran
+  /// Calendrier mensuel et le Simulateur).
+  PrayerSchedule scheduleForDay(DateTime day) =>
+      _engine.scheduleFor(settings, day);
+
+  // =========================================================================
+  // Internals
+  // =========================================================================
+
   void _restoreLastTriggered() {
     final last = _settingsService.getLastTriggered();
     if (last == null) return;
@@ -264,23 +289,22 @@ class PrayerProvider extends ChangeNotifier {
     _lastTriggeredAt = last.at;
   }
 
-  /// Appelé chaque seconde par le timer.
   void _tick() {
-    _now = DateTime.now();
-    // Détection du passage de minuit (changement de jour) → recalcule.
-    if (!_isSameDay(_now, _scheduleDate)) {
+    _wallNow = DateTime.now();
+    // Détecte le changement de jour (vrai pour le temps effectif = sim ou réel).
+    if (!_isSameDay(now, _scheduleDate)) {
       _recompute();
     }
-    _maybeTriggerAdhan();
+    // Adhan uniquement en temps réel (jamais pendant une simulation).
+    if (!isSimulating) _maybeTriggerAdhan();
     notifyListeners();
   }
 
-  /// Recalcule les horaires d'aujourd'hui et de demain à partir des
-  /// settings courants. Appelé au démarrage, à chaque changement de
-  /// paramètre, et à minuit.
   void _recompute() {
-    _now = DateTime.now();
-    _scheduleDate = DateTime(_now.year, _now.month, _now.day);
+    _wallNow = DateTime.now();
+    // Calcule pour la date effective : simulée si simulation active, sinon réelle.
+    final ref = now;
+    _scheduleDate = DateTime(ref.year, ref.month, ref.day);
     _today = _engine.scheduleFor(settings, _scheduleDate);
     _tomorrow = _engine.scheduleFor(
       settings,
@@ -288,38 +312,33 @@ class PrayerProvider extends ChangeNotifier {
     );
   }
 
-  /// Calcule les horaires pour un jour arbitraire (utilisé par l'écran
-  /// "Calendrier mensuel" qui affiche les 30 prochains jours).
-  PrayerSchedule scheduleForDay(DateTime day) =>
-      _engine.scheduleFor(settings, day);
+  /// Retourne le chemin asset du fichier adhan adapté au slot.
+  /// Fajr a son propre adhan (avec "الصلاة خير من النوم").
+  String _adhanAsset(PrayerSlot? slot) =>
+      slot == PrayerSlot.fajr
+          ? 'audio/Adhan_al_fajr.mp3'
+          : 'audio/Adhan.mp3';
 
-  /// Si on vient de franchir l'heure d'une prière (fenêtre 0-5 s), joue
-  /// l'adhan. Le filtre _lastTriggered empêche le rejeu en cas de redémarrage
-  /// ou de tick décalé.
   void _maybeTriggerAdhan() {
+    // Pendant la simulation, on ne joue jamais de vrai adhan.
+    if (isSimulating) return;
     if (!settings.playAdhan || _today == null) return;
-    final current = _engine.currentPrayer(_today!, _now);
+    final current = _engine.currentPrayer(_today!, _wallNow);
     if (current == null) return;
     final prayerTime = _today!.all[current];
     if (prayerTime == null) return;
 
-    // Anti-rejeu : si on a déjà déclenché ce slot il y a moins de 10 min,
-    // on ne refait pas. Couvre le cas où l'app redémarre 2 min après une
-    // prière — sans ça, l'adhan rejouerait à chaque restart.
     if (_lastTriggered == current && _lastTriggeredAt != null) {
-      final sinceLast = _now.difference(_lastTriggeredAt!).abs();
+      final sinceLast = _wallNow.difference(_lastTriggeredAt!).abs();
       if (sinceLast.inMinutes < 10) return;
     }
 
-    // Fenêtre stricte 0-5 secondes : on déclenche pile au moment de
-    // l'adhan, pas avant, pas longtemps après (ex : si l'app a été en
-    // pause puis revient, on ne joue pas un adhan rétroactivement).
-    final secondsSince = _now.difference(prayerTime).inSeconds;
+    final secondsSince = _wallNow.difference(prayerTime).inSeconds;
     if (secondsSince >= 0 && secondsSince < 5) {
-      _audio.playAdhan();
+      _audio.playAdhan(assetPath: _adhanAsset(current));
       _lastTriggered = current;
-      _lastTriggeredAt = _now;
-      _settingsService.setLastTriggered(current, _now);
+      _lastTriggeredAt = _wallNow;
+      _settingsService.setLastTriggered(current, _wallNow);
     }
   }
 

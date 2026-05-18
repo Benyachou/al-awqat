@@ -21,6 +21,7 @@ class SideInfo extends StatelessWidget {
     required this.arabicLabel,
     required this.time,
     this.scale = 1.0,
+    this.isActive = false,
   });
 
   /// Libellé en français ("Shurûq", "Jumu'ah").
@@ -35,6 +36,9 @@ class SideInfo extends StatelessWidget {
   /// Facteur multiplicatif (sideScale × fontScale depuis les Settings).
   final double scale;
 
+  /// Si true, met la pilule en surbrillance dorée (Jumu'ah actif).
+  final bool isActive;
+
   @override
   Widget build(BuildContext context) {
     final timeStr = time != null ? DateFormat('HH:mm').format(time!) : '--:--';
@@ -43,12 +47,25 @@ class SideInfo extends StatelessWidget {
       margin: EdgeInsets.symmetric(horizontal: 6 * s),
       padding: EdgeInsets.symmetric(horizontal: 22 * s, vertical: 18 * s),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.42),
+        color: isActive
+            ? AppTheme.highlight.withValues(alpha: 0.18)
+            : Colors.black.withValues(alpha: 0.42),
         borderRadius: BorderRadius.circular(22 * s),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.18),
-          width: 1.4,
+          color: isActive
+              ? AppTheme.highlight.withValues(alpha: 0.90)
+              : Colors.white.withValues(alpha: 0.18),
+          width: isActive ? 2.0 : 1.4,
         ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: AppTheme.highlight.withValues(alpha: 0.30),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                )
+              ]
+            : null,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -80,7 +97,7 @@ class SideInfo extends StatelessWidget {
             style: TextStyle(
               fontSize: 44 * s,
               fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
+              color: isActive ? AppTheme.highlight : AppTheme.textPrimary,
               fontFeatures: const [FontFeature.tabularFigures()],
               height: 1,
               shadows: AppTheme.textShadowStrong,

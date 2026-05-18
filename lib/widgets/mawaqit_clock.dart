@@ -29,6 +29,7 @@ class MawaqitClock extends StatelessWidget {
     required this.untilNext,
     required this.hijriOffset,
     this.scale = 1.0,
+    this.nextSlotLabel,
   });
 
   final DateTime now;
@@ -36,6 +37,10 @@ class MawaqitClock extends StatelessWidget {
   final Duration untilNext;
   final int hijriOffset;
   final double scale;
+
+  /// Si renseigné, remplace le label calculé depuis [nextSlot].
+  /// Utilisé le vendredi pour afficher "Jumu'ah" à la place de "Dhuhr"/"Asr".
+  final String? nextSlotLabel;
 
   /// Convertit un PrayerSlot en libellé français court pour le chip
   /// "Asr dans 1 h 20 min". Sépraré de PrayerNames.french pour permettre
@@ -165,7 +170,7 @@ class MawaqitClock extends StatelessWidget {
                         color: AppTheme.accent, size: 16 * s),
                     SizedBox(width: 8 * s),
                     Text(
-                      _slotLabel(nextSlot!),
+                      nextSlotLabel ?? _slotLabel(nextSlot!),
                       style: TextStyle(
                         fontSize: 18 * s,
                         fontWeight: FontWeight.bold,

@@ -59,50 +59,54 @@ class AdhanOverlay extends StatelessWidget {
             children: [
               Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Spacer(flex: 2),
-                    _PulsingHalo(
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.45),
-                              border: Border.all(
-                                color: AppTheme.highlight.withValues(alpha: 0.7),
-                                width: 2,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _PulsingHalo(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withValues(alpha: 0.45),
+                                border: Border.all(
+                                  color: AppTheme.highlight.withValues(alpha: 0.7),
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.mosque,
+                                size: 88,
+                                color: AppTheme.highlight,
                               ),
                             ),
-                            child: const Icon(
-                              Icons.mosque,
-                              size: 88,
-                              color: AppTheme.highlight,
+                            const SizedBox(height: 32),
+                            Text(
+                              'الأذان',
+                              style: TextStyle(
+                                fontSize: 180,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary,
+                                height: 1,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.9),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                  Shadow(
+                                    color:
+                                        AppTheme.highlight.withValues(alpha: 0.6),
+                                    blurRadius: 60,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 32),
-                          Text(
-                            'الأذان',
-                            style: TextStyle(
-                              fontSize: 180,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
-                              height: 1,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withValues(alpha: 0.9),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 4),
-                                ),
-                                Shadow(
-                                  color:
-                                      AppTheme.highlight.withValues(alpha: 0.6),
-                                  blurRadius: 60,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -116,7 +120,7 @@ class AdhanOverlay extends StatelessWidget {
                         shadows: AppTheme.textShadow,
                       ),
                     ),
-                    const Spacer(flex: 2),
+                    const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 32, vertical: 16),
@@ -401,61 +405,67 @@ class IqamaCountdownOverlay extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'IQAMA DANS',
-                    style: TextStyle(
-                      fontSize: 56,
-                      letterSpacing: 14,
-                      color: AppTheme.textPrimary.withValues(alpha: 0.92),
-                      fontWeight: FontWeight.w300,
-                      shadows: AppTheme.textShadow,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    seconds.toString(),
-                    style: TextStyle(
-                      fontSize: 280,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.highlight,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      height: 1,
-                      shadows: [
-                        Shadow(
-                          color: AppTheme.highlight.withValues(alpha: 0.6),
-                          blurRadius: 40,
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'IQAMA DANS',
+                        style: TextStyle(
+                          fontSize: 56,
+                          letterSpacing: 14,
+                          color: AppTheme.textPrimary.withValues(alpha: 0.92),
+                          fontWeight: FontWeight.w300,
+                          shadows: AppTheme.textShadow,
                         ),
-                        const Shadow(
-                          color: Colors.black87,
-                          blurRadius: 6,
-                          offset: Offset(0, 4),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        seconds.toString(),
+                        style: TextStyle(
+                          fontSize: 280,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.highlight,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          height: 1,
+                          shadows: [
+                            Shadow(
+                              color: AppTheme.highlight.withValues(alpha: 0.6),
+                              blurRadius: 40,
+                            ),
+                            const Shadow(
+                              color: Colors.black87,
+                              blurRadius: 6,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        'SECONDES',
+                        style: TextStyle(
+                          fontSize: 32,
+                          color: AppTheme.highlight.withValues(alpha: 0.85),
+                          letterSpacing: 12,
+                          fontWeight: FontWeight.w500,
+                          shadows: AppTheme.textShadow,
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+                      Text(
+                        'Préparez-vous pour $french',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          color: AppTheme.textPrimary,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'SECONDES',
-                    style: TextStyle(
-                      fontSize: 32,
-                      color: AppTheme.highlight.withValues(alpha: 0.85),
-                      letterSpacing: 12,
-                      fontWeight: FontWeight.w500,
-                      shadows: AppTheme.textShadow,
-                    ),
-                  ),
-                  const SizedBox(height: 36),
-                  Text(
-                    'Préparez-vous pour $french',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      color: AppTheme.textPrimary,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
             _MiniSchedule(today: today),
@@ -807,16 +817,24 @@ class _MiniSchedule extends StatelessWidget {
           ),
           SizedBox(height: separatorGap),
           // === Pilules glass des 5 prières, bien espacées ===
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final slot in _slots)
-                _MiniSlot(
-                  name: PrayerNames.french[slot.name]!,
-                  time: today.all[slot]!,
-                  large: large,
-                ),
-            ],
+          // FittedBox garantit que les pilules se réduisent si la fenêtre
+          // est trop étroite, sans jamais déborder.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final slot in _slots)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: _MiniSlot(
+                      name: PrayerNames.french[slot.name]!,
+                      time: today.all[slot]!,
+                      large: large,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

@@ -34,7 +34,7 @@ class AppSettings {
   /// Clé du preset (mosquee_paris, mwl, umm_al_qura, etc.). Voir CalculationPreset.
   final String calculationPresetKey;
   /// Choisi par l'utilisateur — impacte uniquement l'heure du Asr.
-  /// Shafi = standard, Hanafi = Asr ~1h plus tard.
+  /// Shafi/Maliki/Hanbali = ombre × 1 (standard), Hanafi = ombre × 2 (Asr ~1h plus tard).
   final Madhab madhab;
 
   // --- Adhan ---
