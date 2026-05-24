@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+# Nécessaire pour que softprops/action-gh-release puisse créer le tag/Release.
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK
@@ -22,7 +26,8 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.0'
+          # Doit fournir Dart >= 3.11.5 (contrainte de pubspec.yaml).
+          flutter-version: '3.41.9'
           channel: stable
           cache: true
 
