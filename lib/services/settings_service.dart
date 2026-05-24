@@ -39,6 +39,8 @@ class SettingsService {
   static const _kJumuahHour = 'jumuahHour';
   static const _kJumuahMinute = 'jumuahMinute';
   static const _kHijriOffset = 'hijriOffset';
+  static const _kMawaqitSlug = 'mawaqitSlug';
+  static const _kUseMawaqit = 'useMawaqit';
   static const _kUpdateRepoUrl = 'updateRepoUrl';
   static const _kAutoCheckUpdates = 'autoCheckUpdates';
   static const _kBackgroundDimming = 'backgroundDimming';
@@ -96,6 +98,9 @@ class SettingsService {
           _prefs.getInt(_kJumuahMinute) ?? AppSettings.defaults.jumuahMinute,
       hijriOffset:
           _prefs.getInt(_kHijriOffset) ?? AppSettings.defaults.hijriOffset,
+      mawaqitSlug: _prefs.getString(_kMawaqitSlug),
+      useMawaqit:
+          _prefs.getBool(_kUseMawaqit) ?? AppSettings.defaults.useMawaqit,
       updateRepoUrl: _prefs.getString(_kUpdateRepoUrl),
       autoCheckUpdates: _prefs.getBool(_kAutoCheckUpdates) ??
           AppSettings.defaults.autoCheckUpdates,
@@ -134,6 +139,7 @@ class SettingsService {
       _prefs.setInt(_kJumuahHour, newSettings.jumuahHour),
       _prefs.setInt(_kJumuahMinute, newSettings.jumuahMinute),
       _prefs.setInt(_kHijriOffset, newSettings.hijriOffset),
+      _prefs.setBool(_kUseMawaqit, newSettings.useMawaqit),
       _prefs.setBool(_kAutoCheckUpdates, newSettings.autoCheckUpdates),
       _prefs.setDouble(_kBackgroundDimming, newSettings.backgroundDimming),
       _prefs.setDouble(_kClockScale, newSettings.clockScale),
@@ -142,6 +148,11 @@ class SettingsService {
       _prefs.setDouble(_kHeaderScale, newSettings.headerScale),
       _prefs.setDouble(_kFontScale, newSettings.fontScale),
     ];
+    if (newSettings.mawaqitSlug != null) {
+      futures.add(_prefs.setString(_kMawaqitSlug, newSettings.mawaqitSlug!));
+    } else {
+      await _prefs.remove(_kMawaqitSlug);
+    }
     // Cas null : on supprime la clé pour ne pas la lire au prochain load().
     if (newSettings.updateRepoUrl != null) {
       futures.add(_prefs.setString(_kUpdateRepoUrl, newSettings.updateRepoUrl!));

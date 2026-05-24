@@ -61,6 +61,14 @@ class AppSettings {
   /// Plage : -15 à +15. Voir HijriHelper.offsetForObservedDate.
   final int hijriOffset;
 
+  // --- Mawaqit ---
+  /// Slug de la mosquée Mawaqit (ex: "ascg-ganges-34190-france").
+  /// Null si non configuré.
+  final String? mawaqitSlug;
+  /// Utiliser l'API Mawaqit comme source principale des horaires.
+  /// Si false (ou si le fetch échoue), on utilise PrayerEngine en local.
+  final bool useMawaqit;
+
   // --- Mises à jour ---
   /// Dépôt GitHub "owner/repo" à interroger pour les nouvelles versions.
   /// Null si non configuré.
@@ -108,6 +116,8 @@ class AppSettings {
     required this.jumuahHour,
     required this.jumuahMinute,
     required this.hijriOffset,
+    required this.mawaqitSlug,
+    required this.useMawaqit,
     required this.updateRepoUrl,
     required this.autoCheckUpdates,
     required this.prayerOffsets,
@@ -136,6 +146,8 @@ class AppSettings {
     jumuahHour: 14,
     jumuahMinute: 0,
     hijriOffset: 0,
+    mawaqitSlug: null,
+    useMawaqit: false,
     updateRepoUrl: null,
     autoCheckUpdates: true,
     prayerOffsets: <PrayerSlot, int>{},
@@ -174,6 +186,9 @@ class AppSettings {
     int? jumuahHour,
     int? jumuahMinute,
     int? hijriOffset,
+    String? mawaqitSlug,
+    bool clearMawaqitSlug = false,
+    bool? useMawaqit,
     String? updateRepoUrl,
     bool clearUpdateRepoUrl = false,
     bool? autoCheckUpdates,
@@ -200,6 +215,9 @@ class AppSettings {
       jumuahHour: jumuahHour ?? this.jumuahHour,
       jumuahMinute: jumuahMinute ?? this.jumuahMinute,
       hijriOffset: hijriOffset ?? this.hijriOffset,
+      mawaqitSlug:
+          clearMawaqitSlug ? null : (mawaqitSlug ?? this.mawaqitSlug),
+      useMawaqit: useMawaqit ?? this.useMawaqit,
       updateRepoUrl: clearUpdateRepoUrl
           ? null
           : (updateRepoUrl ?? this.updateRepoUrl),

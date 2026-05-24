@@ -35,25 +35,31 @@ import '../core/display_mode.dart';
 import '../core/prayer_engine.dart';
 import '../models/app_settings.dart';
 import '../services/audio_service.dart';
+import '../services/mawaqit_service.dart';
 import '../services/settings_service.dart';
 import '../services/update_service.dart';
+
+export '../services/mawaqit_service.dart' show MawaqitStatus;
 
 class PrayerProvider extends ChangeNotifier {
   PrayerProvider(this._settingsService) {
     _engine = PrayerEngine();
     _audio = AudioService();
     _updateService = UpdateService();
+    _mawaqit = MawaqitService();
     _audio.setVolume(settings.adhanVolume);
     _restoreLastTriggered();
     _recompute();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _maybeAutoCheckUpdates();
+    _refreshMawaqit();
   }
 
   final SettingsService _settingsService;
   late final PrayerEngine _engine;
   late final AudioService _audio;
   late final UpdateService _updateService;
+  late final MawaqitService _mawaqit;
   late Timer _ticker;
 
   AudioService get audio => _audio;
@@ -61,6 +67,11 @@ class PrayerProvider extends ChangeNotifier {
 
   UpdateInfo? _availableUpdate;
   UpdateInfo? get availableUpdate => _availableUpdate;
+
+  // --- Mawaqit ---
+  MawaqitSchedule? _mawaqitToday;
+  MawaqitStatus _mawaqitStatus = MawaqitStatus.disabled;
+  MawaqitStatus get mawaqitStatus => _mawaqitStatus;
 
   // --- Horloge murale (mise à jour chaque seconde par _tick) ---
   DateTime _wallNow = DateTime.now();
@@ -75,7 +86,25 @@ class PrayerProvider extends ChangeNotifier {
   DateTime? _lastTriggeredAt;
 
   AppSettings get settings => _settingsService.settings;
-  PrayerSchedule? get today => _today;
+
+  /// Horaires du jour : Mawaqit si actif et disponible, sinon calcul local.
+  PrayerSchedule? get today {
+    if (settings.useMawaqit &&
+        _mawaqitToday != null &&
+        _mawaqitToday!.isToday) {
+      final ref = now;
+      final isJumuah =
+          ref.weekday == DateTime.friday && settings.jumuahEnabled;
+      final jumuahFallback = DateTime(ref.year, ref.month, ref.day,
+          settings.jumuahHour, settings.jumuahMinute);
+      return _mawaqitToday!.toPrayerSchedule(
+        isJumuah: isJumuah,
+        jumuahFallback: jumuahFallback,
+      );
+    }
+    return _today;
+  }
+
   PrayerSchedule? get tomorrow => _tomorrow;
 
   // =========================================================================
@@ -244,11 +273,16 @@ class PrayerProvider extends ChangeNotifier {
 
   Future<void> updateSettings(AppSettings newSettings) async {
     final volumeChanged = newSettings.adhanVolume != settings.adhanVolume;
+    final mawaqitChanged = newSettings.useMawaqit != settings.useMawaqit ||
+        newSettings.mawaqitSlug != settings.mawaqitSlug;
     await _settingsService.save(newSettings);
     if (volumeChanged) await _audio.setVolume(newSettings.adhanVolume);
     _recompute();
+    if (mawaqitChanged) unawaited(_refreshMawaqit());
     notifyListeners();
   }
+
+  Future<void> refreshMawaqit() => _refreshMawaqit();
 
   Future<void> stopAdhan() => _audio.stop();
 
@@ -310,6 +344,30 @@ class PrayerProvider extends ChangeNotifier {
       settings,
       _scheduleDate.add(const Duration(days: 1)),
     );
+    // Invalide le cache Mawaqit si on vient de changer de jour.
+    if (_mawaqitToday != null && !_mawaqitToday!.isToday) {
+      _mawaqitToday = null;
+      _mawaqitStatus = MawaqitStatus.loading;
+      unawaited(_refreshMawaqit());
+    }
+  }
+
+  Future<void> _refreshMawaqit() async {
+    final slug = settings.mawaqitSlug;
+    if (!settings.useMawaqit || slug == null || slug.trim().isEmpty) {
+      if (_mawaqitStatus != MawaqitStatus.disabled || _mawaqitToday != null) {
+        _mawaqitToday = null;
+        _mawaqitStatus = MawaqitStatus.disabled;
+        notifyListeners();
+      }
+      return;
+    }
+    _mawaqitStatus = MawaqitStatus.loading;
+    notifyListeners();
+    final result = await _mawaqit.fetchTimes(slug.trim());
+    _mawaqitToday = result;
+    _mawaqitStatus = result != null ? MawaqitStatus.ok : MawaqitStatus.error;
+    notifyListeners();
   }
 
   /// Retourne le chemin asset du fichier adhan adapté au slot.

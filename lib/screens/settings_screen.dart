@@ -84,6 +84,9 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
+              const _SectionTitle('Source des horaires (Mawaqit)'),
+              const _MawaqitSection(),
+              const SizedBox(height: 24),
               const _SectionTitle('Ajustements fins (par prière)'),
               const _OffsetsSection(),
               const SizedBox(height: 24),
@@ -1314,5 +1317,145 @@ class _UpdateSectionState extends State<_UpdateSection> {
         SnackBar(content: Text('Impossible d\'ouvrir $url')),
       );
     }
+  }
+}
+
+// =============================================================================
+// Section Mawaqit dans les Paramètres
+// =============================================================================
+
+class _MawaqitSection extends StatefulWidget {
+  const _MawaqitSection();
+
+  @override
+  State<_MawaqitSection> createState() => _MawaqitSectionState();
+}
+
+class _MawaqitSectionState extends State<_MawaqitSection> {
+  late final TextEditingController _slugCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final slug =
+        context.read<PrayerProvider>().settings.mawaqitSlug ?? '';
+    _slugCtrl = TextEditingController(text: slug);
+  }
+
+  @override
+  void dispose() {
+    _slugCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<PrayerProvider>(
+      builder: (context, prayer, _) {
+        final settings = prayer.settings;
+        final status = prayer.mawaqitStatus;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              title: const Text('Utiliser Mawaqit'),
+              subtitle: const Text(
+                'Remplace le calcul local par les horaires de ta mosquée sur mawaqit.net.',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: settings.useMawaqit,
+              onChanged: (v) {
+                prayer.updateSettings(settings.copyWith(useMawaqit: v));
+              },
+            ),
+            if (settings.useMawaqit) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _slugCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Slug de la mosquée',
+                          hintText: 'ex: ascg-ganges-34190-france',
+                          border: OutlineInputBorder(),
+                          helperText:
+                              'Visible dans l\'URL de ta mosquée sur mawaqit.net/fr/{slug}',
+                          helperMaxLines: 2,
+                        ),
+                        onSubmitted: (v) => _applySlug(prayer, v),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => _applySlug(prayer, _slugCtrl.text),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _StatusBadge(status),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => prayer.refreshMawaqit(),
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Rafraîchir'),
+                    ),
+                  ],
+                ),
+              ),
+              if (status == MawaqitStatus.error)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text(
+                    'Impossible de joindre Mawaqit. Vérifie le slug et ta connexion.\nLes horaires calculés localement sont utilisés en attendant.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  void _applySlug(PrayerProvider prayer, String value) {
+    final trimmed = value.trim();
+    prayer.updateSettings(
+      trimmed.isEmpty
+          ? prayer.settings.copyWith(clearMawaqitSlug: true)
+          : prayer.settings.copyWith(mawaqitSlug: trimmed),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge(this.status);
+  final MawaqitStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color color, IconData icon, String label) = switch (status) {
+      MawaqitStatus.ok => (Colors.green, Icons.check_circle, 'Connecté'),
+      MawaqitStatus.loading => (Colors.orange, Icons.sync, 'Connexion…'),
+      MawaqitStatus.error => (Colors.red, Icons.error_outline, 'Erreur'),
+      MawaqitStatus.disabled => (Colors.grey, Icons.cloud_off, 'Désactivé'),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: color, fontSize: 13)),
+      ],
+    );
   }
 }

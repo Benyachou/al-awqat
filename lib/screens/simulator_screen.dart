@@ -170,7 +170,7 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
 
   void _activate() {
     context.read<PrayerProvider>().simulateTo(_simDt);
-    Navigator.pop(context);
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   void _stop() {
