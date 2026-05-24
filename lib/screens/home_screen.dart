@@ -16,6 +16,7 @@ import '../widgets/overlays.dart';
 import '../widgets/prayer_card.dart';
 import '../widgets/side_info.dart';
 import 'monthly_screen.dart';
+import 'prayer_clock_screen.dart';
 import 'qibla_screen.dart';
 import 'settings_screen.dart';
 
@@ -175,6 +176,18 @@ class _MainView extends StatelessWidget {
   ) {
     if (current != slot) return null;
 
+    // Cas nocturne : entre minuit et le Fajr, aucune prière du jour n'est
+    // encore "courante". On est en réalité dans le créneau de l'Isha priée
+    // la veille → la jauge se vide depuis l'Isha d'hier jusqu'au Fajr du jour.
+    if (slot == PrayerSlot.isha && now.isBefore(today.fajr)) {
+      final start = today.isha.subtract(const Duration(days: 1));
+      final end = today.fajr;
+      final total = end.difference(start).inSeconds;
+      if (total <= 0) return null;
+      final elapsed = now.difference(start).inSeconds.clamp(0, total);
+      return (1.0 - elapsed / total).clamp(0.0, 1.0);
+    }
+
     final order = _orderedSlots.where((s) => s != PrayerSlot.sunrise).toList();
 
     // À ce stade, current == slot (non-null). On utilise slot pour avoir un
@@ -205,7 +218,13 @@ class _MainView extends StatelessWidget {
     final tomorrow = prayer.tomorrow!;
     final settings = prayer.settings;
     final next = prayer.nextPrayer;
-    final current = prayer.currentPrayer;
+    final rawCurrent = prayer.currentPrayer;
+    // Entre minuit et le Fajr, aucune prière du jour n'est "courante" : on est
+    // dans le créneau nocturne de l'Isha (priée la veille). On la traite comme
+    // courante pour que sa carte porte la jauge qui se vide jusqu'au Fajr.
+    final current = (rawCurrent == null && prayer.now.isBefore(today.fajr))
+        ? PrayerSlot.isha
+        : rawCurrent;
 
     return LayoutBuilder(builder: (context, constraints) {
       // Facteur d'ajustement automatique : garantit que les 5 cartes et
@@ -537,6 +556,7 @@ class _Header extends StatelessWidget {
               icon: Icons.explore,
               tooltip: 'Qibla',
               autofocus: true,
+              scale: scale,
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const QiblaScreen()),
@@ -546,9 +566,20 @@ class _Header extends StatelessWidget {
             _GlassIconButton(
               icon: Icons.calendar_month,
               tooltip: 'Calendrier mensuel',
+              scale: scale,
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const MonthlyScreen()),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _GlassIconButton(
+              icon: Icons.schedule,
+              tooltip: 'Horloge 24 h & temps interdits',
+              scale: scale,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PrayerClockScreen()),
               ),
             ),
             const Spacer(),
@@ -565,6 +596,7 @@ class _Header extends StatelessWidget {
                       icon: Icons.stop_circle,
                       iconColor: AppTheme.highlight,
                       tooltip: 'Stopper l\'adhan',
+                      scale: scale,
                       onPressed: onStopAdhan,
                     ),
                   );
@@ -576,6 +608,7 @@ class _Header extends StatelessWidget {
                   _GlassIconButton(
                     icon: Icons.settings,
                     tooltip: 'Paramètres',
+                    scale: scale,
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -618,6 +651,7 @@ class _GlassIconButton extends StatefulWidget {
     this.tooltip,
     this.iconColor,
     this.autofocus = false,
+    this.scale = 1.0,
   });
 
   final IconData icon;
@@ -625,6 +659,10 @@ class _GlassIconButton extends StatefulWidget {
   final String? tooltip;
   final Color? iconColor;
   final bool autofocus;
+
+  /// Facteur d'échelle (= cHeader). Met à l'échelle l'icône et le padding
+  /// pour que les boutons rétrécissent avec le reste du header.
+  final double scale;
 
   @override
   State<_GlassIconButton> createState() => _GlassIconButtonState();
@@ -717,10 +755,10 @@ class _GlassIconButtonState extends State<_GlassIconButton> {
             onFocusChange: (f) => setState(() => _focused = f),
             autofocus: widget.autofocus,
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14 * widget.scale),
               child: Icon(
                 widget.icon,
-                size: 28,
+                size: 28 * widget.scale,
                 color: widget.iconColor ??
                     (_focused
                         ? AppTheme.highlight

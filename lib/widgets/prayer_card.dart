@@ -209,6 +209,10 @@ class PrayerCard extends StatelessWidget {
   /// montre un VRAI compte à rebours (MM:SS qui décroît).
   bool _isCurrentBeforeIqama() {
     if (state != PrayerCardState.current || now == null) return false;
+    // Le compte à rebours iqama n'a de sens qu'APRÈS l'adhan : si l'heure de
+    // la prière n'est pas encore atteinte (ex: créneau nocturne de l'Isha où
+    // l'on affiche l'Isha du soir à venir), pas de countdown.
+    if (now!.isBefore(time)) return false;
     final iqamaAt = time.add(Duration(minutes: iqamaMinutes));
     return now!.isBefore(iqamaAt);
   }
@@ -218,7 +222,10 @@ class PrayerCard extends StatelessWidget {
   ///   - prière courante après iqama : « En prière » (badge calme)
   ///   - autres cas : « +10' » (offset statique de la mosquée)
   String _iqamaBadgeText() {
-    if (state == PrayerCardState.current && now != null) {
+    // Countdown live seulement après l'adhan (now ≥ heure de la prière).
+    if (state == PrayerCardState.current &&
+        now != null &&
+        !now!.isBefore(time)) {
       final iqamaAt = time.add(Duration(minutes: iqamaMinutes));
       final remaining = iqamaAt.difference(now!);
       if (remaining.isNegative || remaining == Duration.zero) {

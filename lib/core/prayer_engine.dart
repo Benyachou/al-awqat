@@ -73,7 +73,11 @@ class PrayerEngine {
   ///   2. Lecture de PrayerTimes pour ce jour.
   ///   3. Application des offsets par prière (+/- N min, voir AppSettings).
   ///   4. Substitution Jumu'ah si on est vendredi et que l'option est ON.
-  PrayerSchedule scheduleFor(AppSettings settings, DateTime day) {
+  PrayerSchedule scheduleFor(
+    AppSettings settings,
+    DateTime day, {
+    bool applyJumuah = true,
+  }) {
     final coords = Coordinates(settings.latitude, settings.longitude);
     final params = settings.preset.build()..madhab = settings.madhab;
     final dateComponents = DateComponents(day.year, day.month, day.day);
@@ -92,7 +96,9 @@ class PrayerEngine {
     // Vendredi + jumuahEnabled → on écrase l'heure calculée du Dhuhr par
     // l'heure manuelle choisie (souvent 13:00 ou 14:00 selon la mosquée).
     // C'est le comportement Mawaqit standard.
-    if (settings.jumuahEnabled && day.weekday == DateTime.friday) {
+    if (applyJumuah &&
+        settings.jumuahEnabled &&
+        day.weekday == DateTime.friday) {
       dhuhr = DateTime(
         day.year,
         day.month,
