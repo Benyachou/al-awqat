@@ -137,7 +137,7 @@ class SettingsScreen extends StatelessWidget {
                     '${(settings.adhanVolume * 100).round()} %'),
                 trailing: SizedBox(
                   width: 220,
-                  child: Slider(
+                  child: _DpadSlider(
                     value: settings.adhanVolume,
                     min: 0,
                     max: 1,
@@ -165,7 +165,7 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: Text('${settings.iqamaMinutes} minutes'),
                 trailing: SizedBox(
                   width: 220,
-                  child: Slider(
+                  child: _DpadSlider(
                     value: settings.iqamaMinutes.toDouble(),
                     min: 0,
                     max: 30,
@@ -327,7 +327,7 @@ class _DisplaySection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Slider(
+            _DpadSlider(
               value: settings.backgroundDimming.clamp(0.0, 1.0),
               min: 0,
               max: 1,
@@ -426,6 +426,87 @@ class _DisplaySection extends StatelessWidget {
   }
 }
 
+/// Slider utilisable à la télécommande (D-pad) sur Android TV.
+///
+/// Le [Slider] Material capture les 4 flèches pour changer sa valeur, ce qui
+/// piège le focus et empêche de naviguer verticalement. Ici on sort le slider
+/// du circuit de focus ([ExcludeFocus]) et on gère les touches nous-mêmes :
+/// gauche/droite ajustent la valeur, haut/bas laissent le focus se déplacer.
+class _DpadSlider extends StatefulWidget {
+  const _DpadSlider({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+    this.label,
+  });
+
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double> onChanged;
+  final String? label;
+
+  @override
+  State<_DpadSlider> createState() => _DpadSliderState();
+}
+
+class _DpadSliderState extends State<_DpadSlider> {
+  bool _focused = false;
+
+  void _step(int direction) {
+    final stepSize = (widget.max - widget.min) / widget.divisions;
+    final next =
+        (widget.value + direction * stepSize).clamp(widget.min, widget.max);
+    if (next != widget.value) widget.onChanged(next);
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _step(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _step(1);
+      return KeyEventResult.handled;
+    }
+    // Haut/bas (et OK) : on laisse le focus se déplacer normalement.
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (f) => setState(() => _focused = f),
+      onKeyEvent: _onKey,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _focused ? AppTheme.highlight : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: ExcludeFocus(
+          child: Slider(
+            value: widget.value.clamp(widget.min, widget.max),
+            min: widget.min,
+            max: widget.max,
+            divisions: widget.divisions,
+            label: widget.label,
+            onChanged: widget.onChanged,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ScaleSlider extends StatelessWidget {
   const _ScaleSlider({
     required this.icon,
@@ -456,7 +537,7 @@ class _ScaleSlider extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Slider(
+            child: _DpadSlider(
               value: value.clamp(0.4, 2.0),
               min: 0.4,
               max: 2.0,
@@ -928,7 +1009,7 @@ class _HijriSection extends StatelessWidget {
               style: const TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 4),
-            Slider(
+            _DpadSlider(
               value: settings.hijriOffset.toDouble().clamp(-15, 15),
               min: -15,
               max: 15,
