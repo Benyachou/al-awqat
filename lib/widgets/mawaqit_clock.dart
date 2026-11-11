@@ -21,21 +21,20 @@ import '../core/hijri_helper.dart';
 import '../core/prayer_engine.dart';
 import '../core/theme.dart';
 
-class MawaqitClock extends StatelessWidget {
-  const MawaqitClock({
+/// Cadre bleu « Prochaine prière : Maghrib, dans 12 min 38 s ». Posé à part,
+/// sous le bloc de l'horloge, en grand : c'est l'information qu'on cherche du
+/// regard.
+class NextPrayerChip extends StatelessWidget {
+  const NextPrayerChip({
     super.key,
-    required this.now,
     required this.nextSlot,
     required this.untilNext,
-    required this.hijriOffset,
     this.scale = 1.0,
     this.nextSlotLabel,
   });
 
-  final DateTime now;
   final PrayerSlot? nextSlot;
   final Duration untilNext;
-  final int hijriOffset;
   final double scale;
 
   /// Si renseigné, remplace le label calculé depuis [nextSlot].
@@ -89,6 +88,88 @@ class MawaqitClock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (nextSlot == null) return const SizedBox.shrink();
+    final s = scale;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 28 * s, vertical: 10 * s),
+      decoration: BoxDecoration(
+        // Fond bleu sombre opaque : le cadre est posé directement sur la
+        // photo, il doit rester lisible.
+        color: Color.alphaBlend(
+          AppTheme.accent.withValues(alpha: 0.3),
+          Colors.black.withValues(alpha: 0.65),
+        ),
+        borderRadius: BorderRadius.circular(22 * s),
+        border: Border.all(
+          color: AppTheme.accent.withValues(alpha: 0.8),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'PROCHAINE PRIÈRE',
+            style: TextStyle(
+              fontSize: 12 * s,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+              letterSpacing: 2,
+              shadows: AppTheme.textShadow,
+            ),
+          ),
+          SizedBox(height: 4 * s),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.nightlight_round,
+                  color: AppTheme.accent, size: 24 * s),
+              SizedBox(width: 8 * s),
+              Text(
+                nextSlotLabel ?? _slotLabel(nextSlot!),
+                style: TextStyle(
+                  fontSize: 30 * s,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                  height: 1,
+                  shadows: AppTheme.textShadow,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 6 * s),
+          Text(
+            'dans ${_formatRemaining(untilNext)}',
+            style: TextStyle(
+              fontSize: 50 * s,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.highlight,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              height: 1,
+              shadows: AppTheme.textShadowStrong,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MawaqitClock extends StatelessWidget {
+  const MawaqitClock({
+    super.key,
+    required this.now,
+    required this.hijriOffset,
+    this.scale = 1.0,
+  });
+
+  final DateTime now;
+  final int hijriOffset;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
     final hh = now.hour.toString().padLeft(2, '0');
     final mm = now.minute.toString().padLeft(2, '0');
     final ss = now.second.toString().padLeft(2, '0');
@@ -132,77 +213,6 @@ class MawaqitClock extends StatelessWidget {
             ),
           ],
         ),
-        if (nextSlot != null) ...[
-          SizedBox(height: 12 * s),
-          // Bloc "Prochaine prière" sur deux lignes : libellé discret en
-          // haut, slot + countdown gros en dessous. Plus parlant que la
-          // simple chip précédente.
-          Container(
-            padding: EdgeInsets.symmetric(
-                horizontal: 18 * s, vertical: 7 * s),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(18 * s),
-              border: Border.all(
-                color: AppTheme.accent.withValues(alpha: 0.7),
-                width: 1.2,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'PROCHAINE PRIÈRE',
-                  style: TextStyle(
-                    fontSize: 10 * s,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
-                    letterSpacing: 2,
-                    shadows: AppTheme.textShadow,
-                  ),
-                ),
-                SizedBox(height: 2 * s),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(Icons.nightlight_round,
-                        color: AppTheme.accent, size: 16 * s),
-                    SizedBox(width: 8 * s),
-                    Text(
-                      nextSlotLabel ?? _slotLabel(nextSlot!),
-                      style: TextStyle(
-                        fontSize: 18 * s,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                        height: 1,
-                        shadows: AppTheme.textShadow,
-                      ),
-                    ),
-                    SizedBox(width: 10 * s),
-                    Container(
-                      width: 1.5,
-                      height: 18 * s,
-                      color: AppTheme.textSecondary.withValues(alpha: 0.5),
-                    ),
-                    SizedBox(width: 10 * s),
-                    Text(
-                      'dans ${_formatRemaining(untilNext)}',
-                      style: TextStyle(
-                        fontSize: 16 * s,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.highlight,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        height: 1,
-                        shadows: AppTheme.textShadow,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
         SizedBox(height: 10 * s),
         Container(
           padding: EdgeInsets.symmetric(

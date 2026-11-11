@@ -21,10 +21,11 @@ import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'app.dart';
+import 'core/constants.dart';
 import 'providers/prayer_provider.dart';
 import 'services/settings_service.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   // Bridge Flutter ↔ moteur Skia : indispensable avant tout appel async/plugin.
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -46,7 +47,13 @@ Future<void> main() async {
 
   // Empêche l'écran de s'éteindre tant que l'app tourne au premier plan.
   // Critique pour un panneau d'affichage de mosquée qui doit tourner 24h/24.
-  WakelockPlus.enable();
+  // Sauf en mode fond d'écran sur PC (--fond) : l'écran doit pouvoir se mettre
+  // en veille normalement.
+  fondEcran = args.contains('--fond');
+  ecranVeille = args.any((a) => a.toLowerCase() == '/s');
+  if (!fondEcran) {
+    WakelockPlus.enable();
+  }
 
   // SettingsService lit toutes les préférences (coords, méthode de calcul,
   // tailles UI, etc.) depuis SharedPreferences AVANT d'instancier le provider,

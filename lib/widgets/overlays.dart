@@ -56,6 +56,9 @@ class AdhanOverlay extends StatelessWidget {
         ),
         child: SafeArea(
           child: Column(
+            // En fond d'écran PC, le bandeau des horaires passe en haut.
+            verticalDirection:
+                fondEcran ? VerticalDirection.up : VerticalDirection.down,
             children: [
               Expanded(
                 child: Column(
@@ -296,6 +299,9 @@ class _PostAdhanOverlayState extends State<PostAdhanOverlay> {
       ),
       child: SafeArea(
         child: Column(
+          // En fond d'écran PC, le bandeau des horaires passe en haut.
+          verticalDirection:
+              fondEcran ? VerticalDirection.up : VerticalDirection.down,
           children: [
             Expanded(
               child: Padding(
@@ -403,6 +409,9 @@ class IqamaCountdownOverlay extends StatelessWidget {
       ),
       child: SafeArea(
         child: Column(
+          // En fond d'écran PC, le bandeau des horaires passe en haut.
+          verticalDirection:
+              fondEcran ? VerticalDirection.up : VerticalDirection.down,
           children: [
             Expanded(
               child: Center(
@@ -564,6 +573,9 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
       ),
       child: SafeArea(
         child: Column(
+          // En fond d'écran PC, le bandeau des horaires passe en haut.
+          verticalDirection:
+              fondEcran ? VerticalDirection.up : VerticalDirection.down,
           children: [
             // Zone principale (défilement des adhkar) — prend l'essentiel
             // de la hauteur disponible.
@@ -691,6 +703,11 @@ class _PostPrayerOverlayState extends State<PostPrayerOverlay> {
 ///
 /// [large] = true → typographie + padding agrandis (utilisé pendant les
 /// adhkar post-prière où l'écran reste sur ce mode plusieurs minutes).
+final _miniScheduleEdge = BorderSide(
+  color: AppTheme.highlight.withValues(alpha: 0.55),
+  width: 1.5,
+);
+
 class _MiniSchedule extends StatelessWidget {
   const _MiniSchedule({
     required this.today,
@@ -735,10 +752,8 @@ class _MiniSchedule extends StatelessWidget {
           ],
         ),
         border: Border(
-          top: BorderSide(
-            color: AppTheme.highlight.withValues(alpha: 0.55),
-            width: 1.5,
-          ),
+          top: fondEcran ? BorderSide.none : _miniScheduleEdge,
+          bottom: fondEcran ? _miniScheduleEdge : BorderSide.none,
         ),
       ),
       child: Column(

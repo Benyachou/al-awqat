@@ -114,9 +114,9 @@ class PrayerCard extends StatelessWidget {
             if (fillProgress != null)
               Align(
                 alignment: Alignment.bottomCenter,
-                child: AnimatedFractionallySizedBox(
-                  duration: const Duration(milliseconds: 800),
-                  curve: Curves.easeOut,
+                // Pas d'animation ici : la jauge change chaque seconde, une
+                // animation relancerait le dessin de tout l'écran en continu.
+                child: FractionallySizedBox(
                   heightFactor: fillProgress!.clamp(0.0, 1.0),
                   widthFactor: 1,
                   child: Container(

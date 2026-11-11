@@ -14,6 +14,8 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/constants.dart';
+
 class AudioService {
   AudioService();
 
@@ -38,6 +40,7 @@ class AudioService {
   /// [assetPath] : chemin relatif dans assets/ (ex: 'audio/Adhan_al_fajr.mp3').
   /// Par défaut utilise 'audio/Adhan.mp3'.
   Future<void> playAdhan({String assetPath = 'audio/Adhan.mp3'}) async {
+    if (ecranVeille) return;
     try {
       await _player.stop();
       await _player.setVolume(_volume);

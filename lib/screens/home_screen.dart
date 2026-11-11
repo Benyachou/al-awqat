@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/constants.dart';
 import '../core/display_mode.dart';
 import '../core/islamic_events.dart';
 import '../core/prayer_engine.dart';
@@ -226,7 +227,7 @@ class _MainView extends StatelessWidget {
         ? PrayerSlot.isha
         : rawCurrent;
 
-    return LayoutBuilder(builder: (context, constraints) {
+    final view = LayoutBuilder(builder: (context, constraints) {
       // Facteur d'ajustement automatique : garantit que les 5 cartes et
       // l'horloge tiennent dans la fenêtre, quelle que soit sa taille.
       // On calcule séparément la contrainte largeur (5 cartes côte-à-côte)
@@ -348,6 +349,15 @@ class _MainView extends StatelessWidget {
                       time: today.sunrise,
                       scale: cSide,
                     ),
+                    // scaleDown : si l'horloge + le cadre « prochaine prière »
+                    // sont trop hauts pour la place disponible, le bloc
+                    // rétrécit au lieu de passer sur les cartes des prières.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 18, vertical: 14),
@@ -372,16 +382,23 @@ class _MainView extends StatelessWidget {
                         children: [
                           MawaqitClock(
                             now: prayer.now,
-                            nextSlot: displayNextSlot,
-                            untilNext: displayUntilNext,
                             hijriOffset: settings.hijriOffset,
                             scale: cClock,
-                            nextSlotLabel: jumuahClockLabel,
                           ),
                           const SizedBox(height: 10),
                           _DigitalClockBar(now: prayer.now),
                         ],
                       ),
+                    ),
+                        const SizedBox(height: 12),
+                        NextPrayerChip(
+                          nextSlot: displayNextSlot,
+                          untilNext: displayUntilNext,
+                          scale: cClock,
+                          nextSlotLabel: jumuahClockLabel,
+                        ),
+                      ],
+                    ),
                     ),
                     SideInfo(
                       label: 'Jumu\'ah',
@@ -438,6 +455,20 @@ class _MainView extends StatelessWidget {
         ),
       );
     });
+
+    if (!fondEcran) return view;
+    // Fond d'écran PC : sur un grand écran les éléments s'éparpillent. On
+    // dessine la vue dans un cadre fixe de 1280 × 720 (le format prévu), puis
+    // on agrandit ce bloc d'un seul tenant, centré et collé en haut.
+    return Align(
+      alignment: Alignment.topCenter,
+      child: FractionallySizedBox(
+        widthFactor: 0.62,
+        child: FittedBox(
+          child: SizedBox(width: 1280, height: 720, child: view),
+        ),
+      ),
+    );
   }
 }
 

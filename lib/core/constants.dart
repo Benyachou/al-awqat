@@ -6,6 +6,16 @@
 // français passent par PrayerNames pour rester cohérents.
 // =============================================================================
 
+/// Vrai quand l'app tourne en fond d'écran sur PC (lancée avec --fond).
+/// La barre des tâches Windows cache le bas de l'écran : le bandeau des
+/// horaires passe alors en haut.
+bool fondEcran = false;
+
+/// Vrai quand l'app tourne en écran de veille sur PC (lancée par Windows
+/// avec /s). Elle reste muette : c'est le fond d'écran qui joue l'adhan,
+/// sinon on l'entendrait deux fois.
+bool ecranVeille = false;
+
 /// Noms des 5 prières + lever du soleil, en arabe vocalisé et en
 /// translittération latine. Les clés sont les `name` de l'enum PrayerSlot
 /// (`fajr`, `sunrise`, `dhuhr`, `asr`, `maghrib`, `isha`) — comme ça on peut
